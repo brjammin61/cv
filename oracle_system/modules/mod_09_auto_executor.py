@@ -1,0 +1,445 @@
+"""
+Module 9: AutoExecutor
+
+AUTOMATED TRADING ENGINE with comprehensive safety controls.
+
+⚠️ CRITICAL: This module executes REAL TRADES with REAL MONEY.
+Only enable after thorough validation and with explicit user approval.
+"""
+
+import logging
+import time
+from datetime import datetime
+from typing import Dict, List, Optional, Tuple
+from enum import Enum
+
+from connectors import KalshiConnector, PolymarketConnector
+from modules import SignalTracker
+
+logger = logging.getLogger(__name__)
+
+
+class ExecutionMode(Enum):
+    """Trading execution modes."""
+    PAPER = "paper"           # Log only, no real trades
+    LIVE = "live"             # Execute real trades
+    DISABLED = "disabled"     # System off
+
+
+class RiskLevel(Enum):
+    """Risk assessment levels."""
+    SAFE = "safe"
+    ELEVATED = "elevated"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class AutoExecutor:
+    """
+    Automated trade execution engine with comprehensive safety controls.
+
+    This module can execute trades automatically when high-quality signals
+    are detected. Includes multiple layers of safety controls and kill switches.
+    """
+
+    def __init__(
+        self,
+        mode: ExecutionMode = ExecutionMode.PAPER,
+        max_position_size_usd: float = 100.0,
+        max_total_exposure_usd: float = 500.0,
+        min_edge_to_trade: float = 3.0,
+        min_conviction: str = "HIGH",
+        max_trades_per_day: int = 5,
+        emergency_stop: bool = False
+    ):
+        """
+        Initialize the auto-executor.
+
+        Args:
+            mode: Execution mode (PAPER, LIVE, DISABLED)
+            max_position_size_usd: Maximum per-trade position size
+            max_total_exposure_usd: Maximum total exposure across all positions
+            min_edge_to_trade: Minimum edge (cents) to execute
+            min_conviction: Minimum conviction level
+            max_trades_per_day: Maximum trades per 24 hours
+            emergency_stop: Emergency kill switch
+        """
+        self.mode = mode
+        self.max_position_size = max_position_size_usd
+        self.max_total_exposure = max_total_exposure_usd
+        self.min_edge = min_edge_to_trade
+        self.min_conviction = min_conviction
+        self.max_trades_per_day = max_trades_per_day
+        self.emergency_stop = emergency_stop
+
+        # Initialize trackers
+        self.signal_tracker = SignalTracker()
+        self.trades_today = 0
+        self.current_exposure = 0.0
+        self.last_reset = datetime.now().date()
+
+        # Performance tracking
+        self.total_trades = 0
+        self.wins = 0
+        self.losses = 0
+        self.total_pnl = 0.0
+
+        logger.info(f"AutoExecutor initialized in {mode.value.upper()} mode")
+        if mode == ExecutionMode.LIVE:
+            logger.warning("⚠️  LIVE TRADING MODE ENABLED - REAL MONEY AT RISK")
+
+    def _reset_daily_limits(self):
+        """Reset daily trade counter if new day."""
+        today = datetime.now().date()
+        if today > self.last_reset:
+            logger.info(f"New trading day. Resetting daily counters.")
+            self.trades_today = 0
+            self.last_reset = today
+
+    def _check_safety_conditions(self) -> Tuple[bool, str]:
+        """
+        Check all safety conditions before executing trade.
+
+        Returns:
+            (is_safe, reason)
+        """
+        # Emergency stop
+        if self.emergency_stop:
+            return False, "EMERGENCY STOP ACTIVATED"
+
+        # Mode check
+        if self.mode == ExecutionMode.DISABLED:
+            return False, "System disabled"
+
+        # Reset daily limits
+        self._reset_daily_limits()
+
+        # Daily trade limit
+        if self.trades_today >= self.max_trades_per_day:
+            return False, f"Daily trade limit reached ({self.max_trades_per_day})"
+
+        # Exposure limit
+        if self.current_exposure >= self.max_total_exposure:
+            return False, f"Maximum exposure reached (${self.current_exposure:.2f})"
+
+        return True, "All safety checks passed"
+
+    def _assess_risk_level(self, signal: Dict) -> RiskLevel:
+        """
+        Assess risk level of a potential trade.
+
+        Args:
+            signal: Signal dictionary
+
+        Returns:
+            RiskLevel
+        """
+        edge = signal.get('edge_cents', 0)
+        conviction = signal.get('conviction', 'LOW')
+        market_liquidity = signal.get('liquidity', 0)
+
+        # Calculate risk score
+        risk_score = 0
+
+        # Edge contributes to safety
+        if edge >= 5.0:
+            risk_score -= 2
+        elif edge >= 3.0:
+            risk_score -= 1
+        elif edge < 2.0:
+            risk_score += 2
+
+        # Conviction contributes to safety
+        if conviction == "HIGH":
+            risk_score -= 2
+        elif conviction == "MEDIUM":
+            risk_score += 0
+        else:
+            risk_score += 3
+
+        # Liquidity matters
+        if market_liquidity < 10000:
+            risk_score += 2
+        elif market_liquidity > 100000:
+            risk_score -= 1
+
+        # Determine risk level
+        if risk_score <= -2:
+            return RiskLevel.SAFE
+        elif risk_score <= 0:
+            return RiskLevel.ELEVATED
+        elif risk_score <= 2:
+            return RiskLevel.HIGH
+        else:
+            return RiskLevel.CRITICAL
+
+    def _calculate_position_size(
+        self,
+        signal: Dict,
+        risk_level: RiskLevel
+    ) -> float:
+        """
+        Calculate optimal position size using Kelly Criterion + risk adjustment.
+
+        Args:
+            signal: Signal dictionary
+            risk_level: Assessed risk level
+
+        Returns:
+            Position size in USD
+        """
+        edge = signal.get('edge_cents', 0) / 100  # Convert to decimal
+        win_rate = 0.65  # Conservative estimate, updated by ML later
+
+        # Kelly Criterion: f = (p * b - q) / b
+        # where p = win_rate, q = 1-p, b = edge
+        if edge <= 0:
+            return 0.0
+
+        kelly_fraction = (win_rate * edge - (1 - win_rate)) / edge
+
+        # Apply fractional Kelly (be conservative)
+        fractional_kelly = 0.25  # Quarter Kelly
+        kelly_size = kelly_fraction * fractional_kelly * self.max_total_exposure
+
+        # Adjust for risk level
+        risk_multipliers = {
+            RiskLevel.SAFE: 1.0,
+            RiskLevel.ELEVATED: 0.7,
+            RiskLevel.HIGH: 0.4,
+            RiskLevel.CRITICAL: 0.1
+        }
+
+        adjusted_size = kelly_size * risk_multipliers[risk_level]
+
+        # Apply hard limits
+        position_size = min(
+            adjusted_size,
+            self.max_position_size,
+            self.max_total_exposure - self.current_exposure
+        )
+
+        return max(0, position_size)
+
+    def should_execute_signal(self, signal: Dict) -> Tuple[bool, str, float]:
+        """
+        Determine if a signal should be executed.
+
+        Args:
+            signal: Signal dictionary
+
+        Returns:
+            (should_execute, reason, position_size)
+        """
+        # Check safety conditions
+        is_safe, safety_reason = self._check_safety_conditions()
+        if not is_safe:
+            return False, safety_reason, 0.0
+
+        # Check signal quality
+        edge = signal.get('edge_cents', 0)
+        conviction = signal.get('conviction', 'NONE')
+
+        if edge < self.min_edge:
+            return False, f"Edge too small ({edge:.2f}¢ < {self.min_edge:.2f}¢)", 0.0
+
+        conviction_levels = {"NONE": 0, "LOW": 1, "MEDIUM": 2, "HIGH": 3}
+        min_conviction_level = conviction_levels.get(self.min_conviction, 2)
+        signal_conviction_level = conviction_levels.get(conviction, 0)
+
+        if signal_conviction_level < min_conviction_level:
+            return False, f"Conviction too low ({conviction} < {self.min_conviction})", 0.0
+
+        # Assess risk
+        risk_level = self._assess_risk_level(signal)
+
+        if risk_level == RiskLevel.CRITICAL:
+            return False, "Risk level CRITICAL - trade rejected", 0.0
+
+        # Calculate position size
+        position_size = self._calculate_position_size(signal, risk_level)
+
+        if position_size < 10:  # Minimum $10 position
+            return False, f"Position size too small (${position_size:.2f})", 0.0
+
+        # All checks passed
+        reason = f"✅ Approved: Edge={edge:.2f}¢, Conviction={conviction}, Risk={risk_level.value}, Size=${position_size:.2f}"
+        return True, reason, position_size
+
+    def execute_trade(
+        self,
+        signal: Dict,
+        position_size: float
+    ) -> Optional[Dict]:
+        """
+        Execute a trade based on signal.
+
+        Args:
+            signal: Signal dictionary
+            position_size: Position size in USD
+
+        Returns:
+            Trade result dictionary or None
+        """
+        if self.mode == ExecutionMode.DISABLED:
+            logger.warning("Cannot execute - system disabled")
+            return None
+
+        signal_type = signal.get('signal_type', 'UNKNOWN')
+        market_name = signal.get('market_name', 'Unknown')
+        edge = signal.get('edge_cents', 0)
+
+        if self.mode == ExecutionMode.PAPER:
+            # Paper trading - log only
+            logger.info(
+                f"📝 PAPER TRADE: {signal_type} on {market_name} "
+                f"(${position_size:.2f}, edge={edge:.2f}¢)"
+            )
+
+            # Log to signal tracker
+            signal_id = self.signal_tracker.log_signal(
+                strategy=signal.get('strategy', 'Unknown'),
+                market_name=market_name,
+                signal_type=signal_type,
+                edge_cents=edge,
+                conviction=signal.get('conviction', 'MEDIUM'),
+                market_price=signal.get('market_price'),
+                rationale=signal.get('rationale', 'Auto-executed'),
+                metadata={'mode': 'paper', 'position_size_usd': position_size}
+            )
+
+            return {
+                'signal_id': signal_id,
+                'mode': 'paper',
+                'executed': True,
+                'position_size': position_size
+            }
+
+        elif self.mode == ExecutionMode.LIVE:
+            # LIVE TRADING - REAL MONEY
+            logger.warning(
+                f"💰 LIVE TRADE: {signal_type} on {market_name} "
+                f"(${position_size:.2f}, edge={edge:.2f}¢)"
+            )
+
+            # TODO: Implement actual trade execution via exchange APIs
+            # This would call KalshiConnector or PolymarketConnector to place orders
+
+            # For now, raise an error to prevent accidental live execution
+            raise NotImplementedError(
+                "LIVE TRADING NOT YET IMPLEMENTED - "
+                "Requires explicit API integration and additional safety review"
+            )
+
+            # When implemented:
+            # 1. Place order on exchange
+            # 2. Log to signal tracker
+            # 3. Update exposure tracking
+            # 4. Return execution result
+
+    def emergency_shutdown(self):
+        """
+        Emergency shutdown - stops all trading immediately.
+        """
+        logger.critical("🚨 EMERGENCY SHUTDOWN ACTIVATED")
+        self.emergency_stop = True
+        self.mode = ExecutionMode.DISABLED
+
+        # TODO: Close all open positions if needed
+
+        logger.critical("All trading stopped. Manual intervention required.")
+
+    def get_status(self) -> Dict:
+        """Get current executor status."""
+        return {
+            'mode': self.mode.value,
+            'emergency_stop': self.emergency_stop,
+            'trades_today': self.trades_today,
+            'max_trades_per_day': self.max_trades_per_day,
+            'current_exposure': self.current_exposure,
+            'max_exposure': self.max_total_exposure,
+            'total_trades': self.total_trades,
+            'wins': self.wins,
+            'losses': self.losses,
+            'win_rate': (self.wins / self.total_trades * 100) if self.total_trades > 0 else 0,
+            'total_pnl': self.total_pnl
+        }
+
+    def print_status(self):
+        """Print formatted status report."""
+        status = self.get_status()
+
+        print("\n" + "=" * 80)
+        print("AUTO-EXECUTOR STATUS")
+        print("=" * 80)
+
+        print(f"\n🔧 Mode: {status['mode'].upper()}")
+        if status['emergency_stop']:
+            print("🚨 EMERGENCY STOP: ACTIVE")
+
+        print(f"\n📊 Today's Activity:")
+        print(f"  Trades: {status['trades_today']} / {status['max_trades_per_day']}")
+        print(f"  Exposure: ${status['current_exposure']:.2f} / ${status['max_exposure']:.2f}")
+
+        print(f"\n📈 All-Time Performance:")
+        print(f"  Total Trades: {status['total_trades']}")
+        print(f"  Wins: {status['wins']}")
+        print(f"  Losses: {status['losses']}")
+        print(f"  Win Rate: {status['win_rate']:.1f}%")
+        print(f"  Total P&L: ${status['total_pnl']:.2f}")
+
+        print("\n" + "=" * 80)
+
+
+# Example usage and testing
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
+
+    print("=" * 80)
+    print("AUTO-EXECUTOR - Module 9")
+    print("=" * 80)
+
+    # Initialize in PAPER mode (safe for testing)
+    executor = AutoExecutor(
+        mode=ExecutionMode.PAPER,
+        max_position_size_usd=100,
+        max_total_exposure_usd=500,
+        min_edge_to_trade=3.0,
+        min_conviction="HIGH"
+    )
+
+    # Example signal
+    test_signal = {
+        'strategy': 'SpatialArbitrage',
+        'market_name': 'Test Market',
+        'signal_type': 'BUY',
+        'edge_cents': 4.5,
+        'conviction': 'HIGH',
+        'market_price': 0.48,
+        'rationale': 'Strong arbitrage opportunity',
+        'liquidity': 150000
+    }
+
+    print("\n[1] Evaluating test signal...")
+    should_execute, reason, position_size = executor.should_execute_signal(test_signal)
+
+    print(f"Decision: {'✅ EXECUTE' if should_execute else '❌ REJECT'}")
+    print(f"Reason: {reason}")
+    if should_execute:
+        print(f"Position Size: ${position_size:.2f}")
+
+        print("\n[2] Executing trade (paper mode)...")
+        result = executor.execute_trade(test_signal, position_size)
+        print(f"Result: {result}")
+
+    print("\n[3] Current status:")
+    executor.print_status()
+
+    print("\n⚠️  To enable LIVE trading:")
+    print("  1. Thoroughly validate system on paper trades")
+    print("  2. Set mode=ExecutionMode.LIVE")
+    print("  3. Implement actual exchange API calls")
+    print("  4. Add additional safety reviews")

@@ -18,6 +18,10 @@ from .mod_06_data_collector import DataCollector
 from .mod_07_signal_tracker import SignalTracker
 from .mod_08_backtester import Backtester, BacktestResult
 
+# Automation and ML (Modules 9-10)
+from .mod_09_auto_executor import AutoExecutor, ExecutionMode, RiskLevel
+from .mod_10_ml_optimizer import MLOptimizer
+
 __all__ = [
     # Core engines
     'BiasCorrector',
@@ -29,7 +33,12 @@ __all__ = [
     'DataCollector',
     'SignalTracker',
     'Backtester',
-    'BacktestResult'
+    'BacktestResult',
+    # Automation & ML
+    'AutoExecutor',
+    'ExecutionMode',
+    'RiskLevel',
+    'MLOptimizer'
 ]
 
-__version__ = '2.0.0'  # Now includes data collection & validation
+__version__ = '3.0.0'  # Now includes automated trading & ML optimization
