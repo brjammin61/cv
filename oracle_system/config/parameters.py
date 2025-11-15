@@ -12,7 +12,7 @@ import json
 
 
 @dataclass
-class BiasC orrectorParams:
+class BiasCorrectorParams:
     """Parameters for the BiasCorrector (Théo Strategy) module."""
 
     # Weight given to the shy voter index (0.0 to 1.0)

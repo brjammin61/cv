@@ -176,11 +176,13 @@ class CompleteOracleSystem:
 
         # Automation & ML
         self.auto_executor = AutoExecutor(
-            db_path=DB_PATH,
-            execution_mode=execution_mode,
-            max_daily_trades=20,
-            max_position_size=500,  # $500 max per position
-            max_account_value=MAX_ACCOUNT_VALUE
+            mode=execution_mode,
+            max_position_size_usd=500,  # $500 max per position
+            max_total_exposure_usd=MAX_ACCOUNT_VALUE,
+            min_edge_to_trade=1.0,  # 1 cent minimum
+            min_conviction="MEDIUM",
+            max_trades_per_day=20,
+            emergency_stop=False
         )
         self.ml_optimizer = MLOptimizer(db_path=DB_PATH)
 
