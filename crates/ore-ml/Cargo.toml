@@ -1,0 +1,32 @@
+[package]
+name = "ore-ml"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+ore-common = { path = "../ore-common" }
+
+tokio.workspace = true
+reqwest.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+# Machine Learning
+ndarray = "0.15"
+linfa = "0.7"
+linfa-logistic = "0.7"
+linfa-trees = "0.7"
+
+# Statistics
+statrs = "0.16"
+
+# Database for historical data
+sqlx = { version = "0.7", features = ["runtime-tokio", "sqlite"] }
+
+chrono.workspace = true

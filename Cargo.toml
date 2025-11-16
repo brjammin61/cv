@@ -9,6 +9,7 @@ members = [
     "crates/ore-treasury",
     "crates/ore-common",
     "crates/ore-solver-ffi",
+    "crates/ore-ml",
 ]
 
 [workspace.package]
