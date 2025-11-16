@@ -1,138 +1,80 @@
-# MonadPulse - Quick Start Guide
+# MonadPulse Quick Start (5 Minutes)
 
-Get MonadPulse running in **under 5 minutes**.
+Get MonadPulse running on a VPS in 5 commands.
 
----
+## 1. Get a VPS
 
-## Prerequisites
+- Go to digitalocean.com (or AWS, Linode, Vultr)
+- Create Ubuntu 22.04 droplet ($12/month, 2GB RAM)
+- Note the IP address
+- SSH in: `ssh root@YOUR_IP`
 
-- Docker installed ([Get Docker](https://docs.docker.com/get-docker/))
-- Docker Compose installed ([Get Docker Compose](https://docs.docker.com/compose/install/))
-- Port 8000 available
-
----
-
-## 🚀 Launch in 3 Commands
+## 2. Setup Server (3 minutes)
 
 ```bash
-cd monadpulse_backend
-cp .env.example .env
-./launch.sh
+curl -o setup.sh https://raw.githubusercontent.com/brjammin61/cv/claude/monadpulse-backend-launch-01QaDPgtQw9qw3xurAzNScyE/monadpulse_backend/scripts/setup_server.sh && chmod +x setup.sh && ./setup.sh
 ```
 
-**That's it!** Your API is now running at `http://localhost:8000`
-
----
-
-## ✅ Verify It's Working
-
-Open your browser or use curl:
+## 3. Deploy MonadPulse (5 minutes)
 
 ```bash
-# Health check
-curl http://localhost:8000/health
-
-# Get dashboard stats
-curl http://localhost:8000/stats/kpi
-
-# Get chart data
-curl http://localhost:8000/stats/chart
-
-# Get validator leaderboard
-curl http://localhost:8000/validators/leaderboard
+curl -o deploy.sh https://raw.githubusercontent.com/brjammin61/cv/claude/monadpulse-backend-launch-01QaDPgtQw9qw3xurAzNScyE/monadpulse_backend/scripts/deploy.sh && chmod +x deploy.sh && ./deploy.sh
 ```
 
-Or visit the **interactive API docs**: `http://localhost:8000/docs`
+## 4. Test It
 
----
-
-## 🔗 Connect Your React Frontend
-
-Update your React app's API URL to:
-
-```javascript
-const API_BASE_URL = 'http://localhost:8000';
+Open in your browser:
+```
+http://YOUR_VPS_IP
 ```
 
-Your React app will now fetch live data from the MonadPulse backend!
+You should see the MonadPulse dashboard with live validator data!
 
----
+## 5. Add SSL (Optional, 1 minute)
 
-## 📊 View Logs
+If you have a domain pointing to your VPS:
 
 ```bash
-# All services
+certbot --nginx -d yourdomain.com -d api.yourdomain.com
+```
+
+Done! Your system is live at `https://yourdomain.com`
+
+---
+
+## What You Just Deployed
+
+- **Backend API**: FastAPI server on port 8000
+- **Frontend**: React dashboard on port 80/443
+- **Database**: PostgreSQL with TimescaleDB
+- **Ingestor**: Auto-updates validator data every 2 minutes
+- **Reverse Proxy**: Nginx with SSL support
+
+## Next Steps
+
+1. Test all features in the dashboard
+2. When Monad mainnet launches Nov 24, integrate the SDK
+3. Share your dashboard with the Monad community
+4. Start building your reputation before launching Omega Engine
+
+## Monitoring
+
+View live backend logs:
+```bash
+cd /opt/monadpulse/monadpulse_backend
 docker-compose logs -f
-
-# Just the API
-docker-compose logs -f api
-
-# Just the ingestor
-docker-compose logs -f ingestor
 ```
 
----
-
-## 🛑 Stop Services
-
+Restart services:
 ```bash
-./stop.sh
-
-# Or manually
-docker-compose down
+docker-compose restart
 ```
 
----
+## Troubleshooting
 
-## 🔧 Troubleshooting
+If something doesn't work:
+1. Check `docker ps` - all 3 containers should be running
+2. Check `systemctl status nginx` - should be active
+3. Check logs: `docker-compose logs api`
 
-### "Port 8000 is already in use"
-
-Find and kill the process:
-```bash
-# On Mac/Linux
-lsof -ti:8000 | xargs kill -9
-
-# On Windows
-netstat -ano | findstr :8000
-taskkill /PID <PID> /F
-```
-
-### "Database connection failed"
-
-Wait 30 seconds for the database to initialize, then:
-```bash
-docker-compose restart api ingestor
-```
-
-### "No data showing in dashboard"
-
-The ingestor runs every 60 seconds. Wait 1 minute after startup for data to appear.
-
-Check ingestor logs:
-```bash
-docker-compose logs ingestor
-```
-
----
-
-## 🎯 Next Steps
-
-1. ✅ Backend is running
-2. 🔗 Connect your React frontend
-3. 📈 View live validator data in your dashboard
-4. 🚀 Deploy to production (see `DEPLOYMENT.md`)
-
----
-
-## 🆘 Need Help?
-
-- **API Documentation**: `http://localhost:8000/docs`
-- **Full README**: See `README.md`
-- **Production Deployment**: See `DEPLOYMENT.md`
-
----
-
-**You're ready to launch MonadPulse!**
-
-🚀 Let's capture that Monad mainnet traffic.
+For detailed help, see [DEPLOYMENT.md](./DEPLOYMENT.md)
