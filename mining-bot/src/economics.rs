@@ -98,7 +98,15 @@ pub async fn calculate_profitability(
     // 1. Calculate expected reward per minute
     // Formula: (local_hashrate / global_difficulty) * reward_rate
     let hashrate_ratio = local_hpm as f64 / state.global_difficulty as f64;
-    let reward_per_min_raw = hashrate_ratio * (state.reward_rate as f64 / 1_000_000_000.0); // 9 decimals
+
+    // Determine token decimals: ORE uses 11 decimals, COAL uses estimated 11 decimals
+    let decimals_divisor = if state.token == "ORE" || state.token == "COAL" {
+        100_000_000_000.0 // 11 decimals (10^11)
+    } else {
+        1_000_000_000.0 // 9 decimals fallback (10^9)
+    };
+
+    let reward_per_min_raw = hashrate_ratio * (state.reward_rate as f64 / decimals_divisor);
     let expected_reward_per_min = reward_per_min_raw * staking_multiplier;
 
     // 2. Calculate gross revenue
