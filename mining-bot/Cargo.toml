@@ -1,0 +1,15 @@
+[package]
+name = "solana-mining-advisor"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+solana-client = "1.18.11"
+solana-sdk = "1.18.11"
+borsh = "1.4.0"                   # For deserializing on-chain account states
+reqwest = { version = "0.12.4", features = ["json"] } # For price oracles (Jupiter)
+tokio = { version = "1", features = ["full"] } # For async operations
+serde = { version = "1.0", features = ["derive"] } # For JSON parsing
+serde_json = "1.0"
+drillx = "2.0.0"                  # Real drillx crate for mining
+num_cpus = "1.16"                 # For detecting CPU cores

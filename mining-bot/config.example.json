@@ -1,0 +1,21 @@
+{
+  "rpc": {
+    "url": "https://api.mainnet-beta.solana.com",
+    "timeout_secs": 30
+  },
+  "miner": {
+    "keypair_path": "~/.config/solana/id.json",
+    "thread_count": 8,
+    "ore_cli_path": "ore",
+    "coal_cli_path": "coal"
+  },
+  "energy": {
+    "hardware_watts": 50.0,
+    "electricity_cost_kwh": 0.10
+  },
+  "mining": {
+    "staking_multiplier": 1.5,
+    "benchmark_duration_secs": 60,
+    "epoch_duration_secs": 60
+  }
+}
