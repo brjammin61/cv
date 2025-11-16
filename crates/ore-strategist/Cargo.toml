@@ -1,0 +1,21 @@
+[package]
+name = "ore-strategist"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[dependencies]
+ore-common = { path = "../ore-common" }
+
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+# For statistical calculations
+statrs = "0.16"
+
+[dev-dependencies]
+approx = "0.5"

@@ -1,0 +1,37 @@
+[package]
+name = "ore-bus"
+version.workspace = true
+edition.workspace = true
+authors.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "ore-bus"
+path = "src/main.rs"
+
+[dependencies]
+ore-common = { path = "../ore-common" }
+ore-state-monitor = { path = "../ore-state-monitor" }
+ore-strategist = { path = "../ore-strategist" }
+ore-jito = { path = "../ore-jito" }
+ore-treasury = { path = "../ore-treasury" }
+
+solana-sdk.workspace = true
+solana-client.workspace = true
+
+tokio.workspace = true
+redis.workspace = true
+futures.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+
+tracing.workspace = true
+tracing-subscriber.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+config.workspace = true
+dotenv.workspace = true
+
+prometheus.workspace = true

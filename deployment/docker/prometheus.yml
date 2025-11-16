@@ -1,0 +1,14 @@
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: 'ore-bus'
+    static_configs:
+      - targets: ['ore-bus:9090']
+        labels:
+          service: 'bus'
+
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

@@ -1,0 +1,51 @@
+# Rust
+target/
+Cargo.lock
+**/*.rs.bk
+*.pdb
+
+# Environment
+.env
+.env.local
+.env.*.local
+config/local.toml
+secrets/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Build artifacts
+dist/
+build/
+*.so
+*.dylib
+*.dll
+
+# CUDA
+*.o
+*.cu.o
+*.ptx
+
+# Testing
+*.profraw
+*.profdata
+
+# Deployment
+deployment/keys/*.json
+deployment/wallets/*.json
+
+# Metrics
+prometheus_data/
+grafana_data/

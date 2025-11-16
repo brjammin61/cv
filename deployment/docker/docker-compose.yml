@@ -1,0 +1,105 @@
+version: '3.8'
+
+services:
+  # Redis - message queue and state store
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes
+    restart: unless-stopped
+
+  # Bus/Dispatcher - central orchestrator
+  ore-bus:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.bus
+    env_file:
+      - ../../.env
+    depends_on:
+      - redis
+    volumes:
+      - ../../deployment/wallets:/app/wallets:ro
+      - bus-logs:/app/logs
+    ports:
+      - "9090:9090"  # Prometheus metrics
+    restart: unless-stopped
+
+  # Miner Worker 1
+  ore-miner-1:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.miner
+    env_file:
+      - ../../.env
+    environment:
+      - ORE_MINER_WORKER_ID=miner-1
+      - ORE_MINER_GPU_DEVICE_ID=0
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+
+  # Miner Worker 2 (optional - add more workers as needed)
+  ore-miner-2:
+    build:
+      context: ../..
+      dockerfile: deployment/docker/Dockerfile.miner
+    env_file:
+      - ../../.env
+    environment:
+      - ORE_MINER_WORKER_ID=miner-2
+      - ORE_MINER_GPU_DEVICE_ID=1
+    depends_on:
+      - redis
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: unless-stopped
+    profiles:
+      - multi-gpu
+
+  # Prometheus - metrics collection
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9091:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+    restart: unless-stopped
+
+  # Grafana - metrics visualization
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana-data:/var/lib/grafana
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_INSTALL_PLUGINS=redis-datasource
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  bus-logs:
+  prometheus-data:
+  grafana-data:
