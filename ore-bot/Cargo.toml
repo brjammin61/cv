@@ -24,7 +24,16 @@ tracing-subscriber.workspace = true
 config.workspace = true
 dotenv.workspace = true
 chrono.workspace = true
+rand = "0.8"
+
+[lib]
+name = "ore_bot"
+path = "src/lib.rs"
 
 [[bin]]
 name = "ore-bot"
 path = "src/main.rs"
+
+[[bin]]
+name = "ore-simulator"
+path = "src/bin/simulator.rs"
