@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  # 1. The PostgreSQL Database (Source of Truth)
+  db:
+    image: postgres:14-alpine
+    container_name: monadpulse-db
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: trader
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-your_secret_password}
+      POSTGRES_DB: monadpulse
+    volumes:
+      - pulse_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U trader -d monadpulse"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  # 2. The FastAPI Backend (React app talks to this)
+  api:
+    container_name: monadpulse-api
+    build: ./api
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://trader:${POSTGRES_PASSWORD:-your_secret_password}@db/monadpulse"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  # 3. The Data Ingestor (Fills the DB with validator data)
+  ingestor:
+    container_name: monadpulse-ingestor
+    build: ./ingestor
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: "postgresql://trader:${POSTGRES_PASSWORD:-your_secret_password}@db/monadpulse"
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      UPDATE_INTERVAL_SECONDS: ${UPDATE_INTERVAL_SECONDS:-60}
+    restart: unless-stopped
+
+volumes:
+  pulse_db_data:
