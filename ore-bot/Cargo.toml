@@ -37,3 +37,7 @@ path = "src/main.rs"
 [[bin]]
 name = "ore-simulator"
 path = "src/bin/simulator.rs"
+
+[[bin]]
+name = "token-scanner"
+path = "src/bin/token_scanner.rs"
