@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "ore-bot",
+    "mev-bot",
     "modules/cost-engine",
     "modules/price-oracle",
     "modules/swap-executor",

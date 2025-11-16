@@ -1,5 +1,6 @@
 use crate::types::*;
 use rust_decimal::Decimal;
+use rust_decimal::prelude::ToPrimitive;
 use rust_decimal_macros::dec;
 
 /// Calculate actual profit accounting for ALL fees and slippage
