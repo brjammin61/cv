@@ -1,0 +1,88 @@
+version: '3.8'
+
+services:
+  ore-bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ore-arbitrage-bot
+    restart: unless-stopped
+
+    # Environment variables (override with .env file)
+    env_file:
+      - .env
+
+    # Volumes for persistent data
+    volumes:
+      # Mount wallet file (IMPORTANT: Keep this secure!)
+      - ./wallet.json:/app/wallet.json:ro
+
+      # Mount logs directory
+      - ./logs:/app/logs
+
+      # Optional: Mount custom miner binary
+      # - ./ore-miner:/app/ore-miner:ro
+
+    # Resource limits (adjust based on your server)
+    deploy:
+      resources:
+        limits:
+          cpus: '2.0'
+          memory: 2G
+        reservations:
+          cpus: '1.0'
+          memory: 512M
+
+    # Logging configuration
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    # Security options
+    security_opt:
+      - no-new-privileges:true
+
+    # Network mode (use host for better RPC performance)
+    network_mode: bridge
+
+    # Health check
+    healthcheck:
+      test: ["CMD", "pgrep", "-f", "ore-bot"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+# Optional: Add monitoring with Prometheus/Grafana
+# Uncomment below to enable monitoring
+
+# prometheus:
+#   image: prom/prometheus:latest
+#   container_name: ore-bot-prometheus
+#   restart: unless-stopped
+#   volumes:
+#     - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+#     - prometheus_data:/prometheus
+#   ports:
+#     - "9090:9090"
+#   command:
+#     - '--config.file=/etc/prometheus/prometheus.yml'
+#     - '--storage.tsdb.path=/prometheus'
+
+# grafana:
+#   image: grafana/grafana:latest
+#   container_name: ore-bot-grafana
+#   restart: unless-stopped
+#   volumes:
+#     - grafana_data:/var/lib/grafana
+#   ports:
+#     - "3000:3000"
+#   environment:
+#     - GF_SECURITY_ADMIN_PASSWORD=admin
+#     - GF_INSTALL_PLUGINS=grafana-clock-panel
+
+# volumes:
+#   prometheus_data:
+#   grafana_data:

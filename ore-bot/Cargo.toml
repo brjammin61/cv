@@ -1,0 +1,30 @@
+[package]
+name = "ore-bot"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+# Workspace modules
+cost-engine = { path = "../modules/cost-engine" }
+price-oracle = { path = "../modules/price-oracle" }
+swap-executor = { path = "../modules/swap-executor" }
+miner-control = { path = "../modules/miner-control" }
+
+# Workspace dependencies
+solana-sdk.workspace = true
+solana-client.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+config.workspace = true
+dotenv.workspace = true
+chrono.workspace = true
+
+[[bin]]
+name = "ore-bot"
+path = "src/main.rs"

@@ -1,0 +1,23 @@
+[package]
+name = "swap-executor"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+solana-sdk.workspace = true
+solana-client.workspace = true
+tokio.workspace = true
+async-trait.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+reqwest.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+bs58.workspace = true
+bincode.workspace = true
+chrono.workspace = true
+
+[lib]
+name = "swap_executor"
+path = "src/lib.rs"
