@@ -213,9 +213,9 @@ class CompleteOracleSystem:
         # Initialize connectors
         # NOTE: Collecting data from BOTH exchanges
         # But only executing on Kalshi (user is US-based)
-        # TODO: Set simulate_data=False when you have API keys
-        self.kalshi = KalshiConnector(simulate_data=True)
-        self.polymarket = PolymarketConnector(simulate_data=True)
+        # Will automatically fall back to simulation if API fails
+        self.kalshi = KalshiConnector(simulate_data=False)
+        self.polymarket = PolymarketConnector(simulate_data=True)  # US-based, only collect Poly data
 
         # Counters
         self.data_cycles = 0
