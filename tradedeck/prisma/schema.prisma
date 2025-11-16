@@ -1,0 +1,460 @@
+// Prisma Schema for TradeDeck Production Database
+// Database: PostgreSQL (recommended) or MySQL
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// User & Authentication Models
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?   // For email/password auth
+  role          UserRole  @default(USER)
+
+  // Profile
+  bio           String?
+  avatar        String?
+  coverImage    String?
+  location      String?
+  website       String?
+
+  // Stats
+  rating        Float     @default(0)
+  totalSales    Int       @default(0)
+  totalPurchases Int      @default(0)
+  totalListings Int       @default(0)
+
+  // Settings
+  emailNotifications Boolean @default(true)
+  pushNotifications  Boolean @default(true)
+
+  // Stripe
+  stripeAccountId    String?   @unique
+  stripeCustomerId   String?   @unique
+  stripeOnboarded    Boolean   @default(false)
+
+  // Relations
+  accounts      Account[]
+  sessions      Session[]
+  cards         Card[]
+  purchases     Transaction[] @relation("Buyer")
+  sales         Transaction[] @relation("Seller")
+  sentMessages  Message[]     @relation("Sender")
+  receivedMessages Message[]  @relation("Receiver")
+  offers        Offer[]
+  reviews       Review[]      @relation("Reviewer")
+  receivedReviews Review[]    @relation("Reviewed")
+
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  @@index([email])
+}
+
+enum UserRole {
+  USER
+  SELLER
+  ADMIN
+}
+
+// NextAuth Models
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Card Models
+model Card {
+  id          String   @id @default(cuid())
+
+  // Card Details
+  title       String
+  player      String
+  year        Int
+  sport       Sport
+  set         String
+  cardNumber  String
+  category    String
+  era         String
+
+  // Condition
+  condition   Condition
+  graded      Boolean  @default(false)
+  grade       Float?
+  gradingCompany GradingCompany?
+
+  // Pricing
+  price       Float
+  originalPrice Float?
+  currency    String   @default("USD")
+
+  // Images
+  imageUrl    String
+  images      String[] // Array of image URLs
+
+  // Description
+  description String?  @db.Text
+
+  // Features
+  featured    Boolean  @default(false)
+  verified    Boolean  @default(false)
+
+  // Seller
+  sellerId    String
+  seller      User     @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  // Status
+  status      CardStatus @default(ACTIVE)
+
+  // Analytics
+  views       Int      @default(0)
+  likes       Int      @default(0)
+  shares      Int      @default(0)
+
+  // Relations
+  transactions Transaction[]
+  offers      Offer[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([sellerId])
+  @@index([sport])
+  @@index([status])
+  @@index([featured])
+  @@index([createdAt])
+}
+
+enum Sport {
+  BASKETBALL
+  BASEBALL
+  FOOTBALL
+  SOCCER
+  HOCKEY
+  OTHER
+}
+
+enum Condition {
+  MINT
+  NEAR_MINT
+  EXCELLENT
+  GOOD
+  FAIR
+  POOR
+}
+
+enum GradingCompany {
+  PSA
+  BGS
+  SGC
+  CGC
+}
+
+enum CardStatus {
+  ACTIVE
+  SOLD
+  PENDING
+  ARCHIVED
+  FLAGGED
+}
+
+// Transaction & Escrow Models
+model Transaction {
+  id              String    @id @default(cuid())
+
+  // Parties
+  cardId          String
+  card            Card      @relation(fields: [cardId], references: [id])
+  buyerId         String
+  buyer           User      @relation("Buyer", fields: [buyerId], references: [id])
+  sellerId        String
+  seller          User      @relation("Seller", fields: [sellerId], references: [id])
+
+  // Amounts
+  price           Float
+  platformFee     Float
+  shippingFee     Float
+  authenticationFee Float?
+  totalAmount     Float
+
+  // Status
+  status          TransactionStatus @default(PENDING)
+  escrowStatus    EscrowStatus @default(HELD)
+
+  // Authentication
+  authenticationRequired Boolean @default(false)
+  authenticationStatus   AuthStatus?
+  authenticatorCompany   String?
+
+  // Shipping
+  shippingAddress String?  @db.Text
+  trackingNumber  String?
+  carrier         String?
+  shippedAt       DateTime?
+  deliveredAt     DateTime?
+
+  // Stripe
+  stripePaymentIntentId String? @unique
+  stripeTransferId      String? @unique
+
+  // Dispute
+  disputeOpened   Boolean   @default(false)
+  disputeReason   String?
+  disputeResolvedAt DateTime?
+
+  // Timestamps
+  paidAt          DateTime?
+  completedAt     DateTime?
+  canceledAt      DateTime?
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([buyerId])
+  @@index([sellerId])
+  @@index([cardId])
+  @@index([status])
+}
+
+enum TransactionStatus {
+  PENDING
+  PAID
+  SHIPPED
+  DELIVERED
+  COMPLETED
+  DISPUTED
+  CANCELED
+  REFUNDED
+}
+
+enum EscrowStatus {
+  HELD
+  RELEASED
+  REFUNDED
+}
+
+enum AuthStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// Offers & Negotiations
+model Offer {
+  id          String      @id @default(cuid())
+
+  cardId      String
+  card        Card        @relation(fields: [cardId], references: [id], onDelete: Cascade)
+  buyerId     String
+  buyer       User        @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+
+  amount      Float
+  message     String?     @db.Text
+
+  status      OfferStatus @default(PENDING)
+  counterAmount Float?
+  counterMessage String?  @db.Text
+
+  expiresAt   DateTime?
+  acceptedAt  DateTime?
+  rejectedAt  DateTime?
+
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([cardId])
+  @@index([buyerId])
+  @@index([status])
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COUNTERED
+  EXPIRED
+  WITHDRAWN
+}
+
+// Messaging System
+model Message {
+  id          String   @id @default(cuid())
+
+  senderId    String
+  sender      User     @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiverId  String
+  receiver    User     @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  content     String   @db.Text
+  cardId      String?  // Optional reference to card being discussed
+  transactionId String? // Optional reference to transaction
+
+  read        Boolean  @default(false)
+  readAt      DateTime?
+
+  attachments String[] // URLs to attachments
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([senderId])
+  @@index([receiverId])
+  @@index([read])
+}
+
+// Reviews & Ratings
+model Review {
+  id          String   @id @default(cuid())
+
+  reviewerId  String
+  reviewer    User     @relation("Reviewer", fields: [reviewerId], references: [id], onDelete: Cascade)
+  reviewedId  String
+  reviewed    User     @relation("Reviewed", fields: [reviewedId], references: [id], onDelete: Cascade)
+
+  transactionId String @unique
+
+  rating      Int      // 1-5
+  comment     String?  @db.Text
+
+  helpful     Int      @default(0)
+  reported    Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([reviewerId])
+  @@index([reviewedId])
+  @@index([rating])
+}
+
+// Notifications
+model Notification {
+  id        String   @id @default(cuid())
+
+  userId    String
+
+  type      NotificationType
+  title     String
+  message   String   @db.Text
+  link      String?
+
+  read      Boolean  @default(false)
+  readAt    DateTime?
+
+  metadata  Json?    // Additional data
+
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([read])
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  NEW_OFFER
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  PAYMENT_RECEIVED
+  ITEM_SHIPPED
+  ITEM_DELIVERED
+  REVIEW_RECEIVED
+  CARD_SOLD
+  CARD_LIKED
+  SYSTEM
+}
+
+// Admin & Moderation
+model Report {
+  id          String       @id @default(cuid())
+
+  reporterId  String
+  reportedUserId String?
+  reportedCardId String?
+
+  reason      ReportReason
+  description String       @db.Text
+
+  status      ReportStatus @default(PENDING)
+  resolvedBy  String?
+  resolution  String?      @db.Text
+
+  createdAt   DateTime     @default(now())
+  resolvedAt  DateTime?
+
+  @@index([status])
+}
+
+enum ReportReason {
+  FAKE_CARD
+  SCAM
+  INAPPROPRIATE_CONTENT
+  SPAM
+  HARASSMENT
+  OTHER
+}
+
+enum ReportStatus {
+  PENDING
+  INVESTIGATING
+  RESOLVED
+  DISMISSED
+}
+
+// Analytics
+model PageView {
+  id        String   @id @default(cuid())
+
+  path      String
+  cardId    String?
+  userId    String?
+
+  ip        String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([cardId])
+  @@index([createdAt])
+}
