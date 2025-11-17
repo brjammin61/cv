@@ -336,13 +336,73 @@ MONAD_RPC_URL=https://rpc.monad.xyz
 
 ---
 
+## 📚 Strategic Documentation
+
+### Complete Business & Technical Roadmap
+
+We've created comprehensive guides for building MonadPulse into a $100k+ ARR business:
+
+#### 🗺️ **[MASTER_ROADMAP.md](./MASTER_ROADMAP.md)** - START HERE
+Your complete execution plan from launch to $100k revenue in 6 months.
+- Phase 0: Pre-Launch (9 days until mainnet)
+- Phase 1: Launch & Integration (Days 1-10)
+- Phase 2: Omega Engine (Days 11-30)
+- Phase 3: Monetization (Days 31-90)
+- Phase 4: Scale (Days 91-180)
+
+#### 🔌 **[MONAD_SDK_INTEGRATION.md](./MONAD_SDK_INTEGRATION.md)**
+Step-by-step guide for Nov 24 mainnet launch.
+- How to replace mock data with real Monad data
+- Integration code examples
+- Troubleshooting guide
+- Fallback strategies if SDK has issues
+
+#### ⚡ **[OMEGA_ENGINE_ARCHITECTURE.md](./OMEGA_ENGINE_ARCHITECTURE.md)**
+Your secret weapon for competitive advantage.
+- MEV analysis system design
+- Block scanner, classifier, premium API
+- Code examples and database schema
+- Build timeline (Days 11-30)
+
+#### 💰 **[MONETIZATION_STRATEGY.md](./MONETIZATION_STRATEGY.md)**
+How to turn the free dashboard into $100k+ ARR.
+- Freemium pricing strategy ($99, $499, $2,499/mo)
+- Customer acquisition playbook
+- 6-month revenue projections
+- Foundation grant application guide
+
+#### 🚀 **Deployment Guides**
+- **[DEPLOYMENT.md](./DEPLOYMENT.md)** - Complete production deployment
+- **[QUICKSTART.md](./QUICKSTART.md)** - 5-minute rapid deployment
+- **[START_FROM_ZERO.md](./START_FROM_ZERO.md)** - Beginner walkthrough
+- **[DEPLOYMENT_CHECKLIST.md](./DEPLOYMENT_CHECKLIST.md)** - Track your progress
+
+---
+
 ## 📝 Next Steps
 
-1. **Frontend Integration**: Your React app should call `http://localhost:8000`
-2. **Real Data**: Integrate Monad SDK when mainnet launches
-3. **Omega Engine**: Build the private MEV scanner to populate `mev_efficiency` scores
-4. **Analytics**: Add more sophisticated metrics and historical tracking
-5. **Alerting**: Add Telegram/Discord webhooks for critical events
+### This Week (9 Days Until Mainnet):
+1. ✅ **Production System Deployed** - http://143.110.144.231
+2. 📖 **Read [MASTER_ROADMAP.md](./MASTER_ROADMAP.md)** - Understand the full plan
+3. 📖 **Read [MONAD_SDK_INTEGRATION.md](./MONAD_SDK_INTEGRATION.md)** - Prepare for launch day
+4. 🎯 **Join Monad Discord** - Connect with community
+5. 🐦 **Create Twitter Account** - Build audience
+
+### Launch Day (Nov 24):
+1. Integrate Monad SDK (follow MONAD_SDK_INTEGRATION.md)
+2. Deploy real data to production
+3. Announce in Monad Discord
+4. Start building community
+
+### Days 11-30:
+1. Build Omega Engine (follow OMEGA_ENGINE_ARCHITECTURE.md)
+2. Generate proprietary MEV efficiency scores
+3. Create your competitive moat
+
+### Days 31+:
+1. Launch premium tiers (follow MONETIZATION_STRATEGY.md)
+2. Apply for foundation grant
+3. Scale to $100k+ ARR
 
 ---
 
