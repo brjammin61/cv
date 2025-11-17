@@ -53,7 +53,7 @@ class BacktestEngine:
 
     def run_vwap_strategy(self, params):
         """
-        Run VWAP mean reversion strategy
+        Run VWAP mean reversion strategy with REALISTIC COSTS
 
         Args:
             params: Dict with strategy parameters
@@ -65,6 +65,11 @@ class BacktestEngine:
         stddev_mult = params.get('stddev_mult', 2.0)
         stop_loss_ticks = params.get('stop_loss_ticks', 25)
         target_ticks = params.get('target_ticks', 20)
+
+        # REALISTIC COSTS (per round trip)
+        slippage_ticks = params.get('slippage_ticks', 5)  # 5 ticks = $50 (REALISTIC)
+        spread_ticks = params.get('spread_ticks', 1)  # 1 tick bid-ask spread = $10
+        commission = params.get('commission', 4.12)  # Typical CL commission
 
         balance = self.initial_balance
         position = 0
@@ -127,11 +132,23 @@ class BacktestEngine:
                     position = 0
 
                 if pnl != 0:
+                    # APPLY REALISTIC COSTS
+                    # Slippage on entry and exit
+                    slippage_cost = (slippage_ticks * 2) * 10  # Both entry and exit, $10 per tick
+                    # Spread cost
+                    spread_cost = (spread_ticks * 2) * 10  # Crossing spread twice
+                    # Commission
+                    total_cost = slippage_cost + spread_cost + commission
+
+                    pnl -= total_cost  # Deduct realistic costs
+
                     balance += pnl
                     trades.append({
                         'entry': entry_price,
                         'exit': close,
                         'pnl': pnl,
+                        'gross_pnl': pnl + total_cost,
+                        'costs': total_cost,
                         'balance': balance
                     })
 

@@ -1,0 +1,32 @@
+======================================================================
+CRUDE OIL STRATEGY OPTIMIZATION REPORT
+======================================================================
+
+GRID SEARCH RESULTS:
+----------------------------------------------------------------------
+Total Combinations Tested: 81
+Best Sharpe Ratio: 0.5268
+Best Profit Factor: 1.3029
+Best Total PnL: $20866.60
+Average Win Rate: 59.49%
+
+Best Parameters:
+  vwap_period: 25
+  stddev_mult: 2.0
+  stop_loss_ticks: 25
+  target_ticks: 15
+
+======================================================================
+WALK-FORWARD OPTIMIZATION RESULTS:
+----------------------------------------------------------------------
+Total Windows: 0
+Avg OOS PnL: $nan
+Avg OOS Profit Factor: nan
+Avg OOS Sharpe: nan
+Profitable Windows: 0/0
+
+======================================================================
+RECOMMENDATION:
+----------------------------------------------------------------------
+Based on walk-forward optimization (most robust), use:
+
