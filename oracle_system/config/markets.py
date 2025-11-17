@@ -85,133 +85,152 @@ class MarketRegistry:
         self._load_real_markets()
 
     def _load_real_markets(self):
-        """Load real Kalshi markets."""
+        """Load real Kalshi markets - VERIFIED NOV 17, 2025."""
 
         # ====================================================================
-        # ECONOMICS - FEDERAL RESERVE
+        # CRYPTO - HIGHEST VOLUME MARKETS
         # ====================================================================
-        
-        # Fed rate decisions are very liquid on Kalshi
-        # Tickers format: FED{MONTH}{YEAR}
-        
+
         self.markets.append(MarketDefinition(
-            name="Fed Rate Decision - December 2024",
-            category=MarketCategory.ECONOMICS,
+            name="Bitcoin Reserve 2026",
+            category=MarketCategory.FINANCE,
             market_type=MarketType.BINARY,
-            kalshi_ticker="FED-DEC-2024",
-            description="Will the Federal Reserve cut rates in December 2024?",
+            kalshi_ticker="KXBTCRESERVE-26-JAN01",
+            description="Bitcoin Reserve by Jan 2026 (Volume: 2,298,247)",
             enable_spatial_arb=True,
-            enable_rfr_analysis=True,
+            min_liquidity_usd=100000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Bitcoin $150K by May 2026",
+            category=MarketCategory.FINANCE,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXBTCMAX150-25-26MAY31-149999.99",
+            description="BTC hits $150K by May 2026 (Volume: 440,594)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=50000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Bitcoin $150K by Apr 2026",
+            category=MarketCategory.FINANCE,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXBTCMAX150-25-26APR30-149999.99",
+            description="BTC hits $150K by April 2026 (Volume: 164,861)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=20000.0
+        ))
+
+        # ====================================================================
+        # FINANCIALS - HIGH VOLUME
+        # ====================================================================
+
+        self.markets.append(MarketDefinition(
+            name="S&P 500 Max 2026 - $6999",
+            category=MarketCategory.FINANCE,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXINXMAXY-26-6999.99",
+            description="S&P 500 max $6999.99 in 2026 (Volume: 171,285)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=20000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="S&P 500 Max 2026 - $7499",
+            category=MarketCategory.FINANCE,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXINXMAXY-26-7499.99",
+            description="S&P 500 max $7499.99 in 2026 (Volume: 31,881)",
+            enable_spatial_arb=True,
             min_liquidity_usd=10000.0
         ))
 
-        self.markets.append(MarketDefinition(
-            name="Fed Rate Decision - January 2025",
-            category=MarketCategory.ECONOMICS,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="FED-JAN-2025",
-            description="Will the Federal Reserve cut rates in January 2025?",
-            enable_spatial_arb=True,
-            enable_rfr_analysis=True,
-            min_liquidity_usd=10000.0
-        ))
-
         # ====================================================================
-        # ECONOMICS - INFLATION & JOBS
+        # POLITICS - ACTIVE TRADING
         # ====================================================================
 
         self.markets.append(MarketDefinition(
-            name="CPI Report - November 2024",
-            category=MarketCategory.ECONOMICS,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="CPI-NOV-2024",
-            description="Will CPI be above/below target?",
-            enable_spatial_arb=True,
-            min_liquidity_usd=5000.0
-        ))
-
-        self.markets.append(MarketDefinition(
-            name="Jobs Report - November 2024",
-            category=MarketCategory.ECONOMICS,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="JOBS-NOV-2024",
-            description="Will jobs report beat expectations?",
-            enable_spatial_arb=True,
-            min_liquidity_usd=5000.0
-        ))
-
-        # ====================================================================
-        # POLITICS - ACTIVE AS OF NOV 2024
-        # ====================================================================
-
-        # Note: These may have resolved by now. Check kalshi.com for active politics markets.
-        # Format varies: PRES-{YEAR}, HOUSE-{YEAR}, SENATE-{YEAR}
-
-        self.markets.append(MarketDefinition(
-            name="Presidential Approval Rating",
+            name="DC Federalization by Jan 2027",
             category=MarketCategory.POLITICS_US,
             market_type=MarketType.BINARY,
-            kalshi_ticker="APPROVAL-DEC-2024",
-            description="Will Biden's approval rating be above 40% in December?",
+            kalshi_ticker="KXFEDDC-27JAN-FEDDC",
+            description="DC Federalization by Jan 2027 (Volume: 32,835)",
             enable_bias_correction=True,
-            enable_spatial_arb=True,
-            min_liquidity_usd=3000.0
-        ))
-
-        # ====================================================================
-        # FINANCE - MARKET MILESTONES
-        # ====================================================================
-
-        self.markets.append(MarketDefinition(
-            name="S&P 500 - End of 2024",
-            category=MarketCategory.FINANCE,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="SPX-EOY-2024",
-            description="Will S&P 500 close above 5000 in 2024?",
             enable_spatial_arb=True,
             min_liquidity_usd=10000.0
         ))
 
         self.markets.append(MarketDefinition(
-            name="Bitcoin - $100K by End of 2024",
-            category=MarketCategory.FINANCE,
+            name="House VA-7 Democrat",
+            category=MarketCategory.POLITICS_US,
             market_type=MarketType.BINARY,
-            kalshi_ticker="BTC-100K-2024",
-            description="Will Bitcoin reach $100,000 by December 31, 2024?",
-            enable_spatial_arb=True,
-            min_liquidity_usd=5000.0
-        ))
-
-        # ====================================================================
-        # ENTERTAINMENT & CULTURE
-        # ====================================================================
-
-        self.markets.append(MarketDefinition(
-            name="Time Person of the Year 2024",
-            category=MarketCategory.ENTERTAINMENT,
-            market_type=MarketType.CATEGORICAL,
-            kalshi_ticker="TIME-POY-2024",
-            description="Who will be Time's Person of the Year 2024?",
-            enable_spatial_arb=True,
-            min_liquidity_usd=2000.0
-        ))
-
-        # ====================================================================
-        # WEATHER & CLIMATE
-        # ====================================================================
-
-        self.markets.append(MarketDefinition(
-            name="Temperature - December 2024",
-            category=MarketCategory.WEATHER,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="TEMP-DEC-2024",
-            description="Will average temperature exceed seasonal norms?",
+            kalshi_ticker="HOUSEVA7-26-D",
+            description="House Virginia 7th District Dem (Volume: 1,238)",
+            enable_bias_correction=True,
             enable_spatial_arb=True,
             min_liquidity_usd=1000.0
         ))
 
-        # Note: Add more markets as they become available on Kalshi
-        # Check https://kalshi.com/markets for the latest active markets
+        # ====================================================================
+        # ECONOMICS - REAL MARKETS
+        # ====================================================================
+
+        self.markets.append(MarketDefinition(
+            name="Texas Gas Price >= $3",
+            category=MarketCategory.ECONOMICS,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXAAAGASMAXTX-25DEC31-3",
+            description="Texas Gas Price >= $3 (Volume: 33,977)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=10000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Real Wage Growth Above 0%",
+            category=MarketCategory.ECONOMICS,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXREALWAGES-25",
+            description="Real Wage Growth Above 0% in 2025 (Volume: 22,171)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=10000.0
+        ))
+
+        # ====================================================================
+        # MORE CRYPTO MARKETS
+        # ====================================================================
+
+        self.markets.append(MarketDefinition(
+            name="Ethereum >= $5000 Dec 2025",
+            category=MarketCategory.FINANCE,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXETHMAXM-25DEC01-5000",
+            description="Ethereum >= $5000 Dec 2025 (Volume: 2,265)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=2000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="OpenSea Token Launch Jan 2026",
+            category=MarketCategory.FINANCE,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXTOKENLAUNCHOPENSEA-26JAN01",
+            description="OpenSea Token Launch Jan 2026 (Volume: 7,340)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=5000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Utah BTC Reserve 2026",
+            category=MarketCategory.POLITICS_US,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXBTCRESERVESTATES-26-UT",
+            description="Utah BTC Reserve 2026 (Volume: 14,723)",
+            enable_spatial_arb=True,
+            min_liquidity_usd=5000.0
+        ))
+
+        # All markets verified with actual volume data from Kalshi API
+        # Query date: November 17, 2025
 
     def get_all_markets(self) -> List[MarketDefinition]:
         """Get all registered markets."""
