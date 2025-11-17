@@ -1,0 +1,6 @@
+Strategy,Trades,Win%,Profit Factor,Total PnL,Sharpe,Avg Win,Avg Loss
+Baseline (No Filters),195,63.1%,1.303,$20867,0.527,$730,$-957
+Trend Filter Only,3,66.7%,1.121,$78,0.035,$361,$-644
+Volatility Filter Only,139,58.3%,1.118,$6627,0.227,$778,$-972
+Session Filter Only,41,68.3%,1.621,$8901,0.441,$830,$-1103
+All Filters Combined,1,100.0%,0.000,$436,0.374,$436,$0
