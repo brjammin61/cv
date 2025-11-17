@@ -4,7 +4,7 @@ Database connection utilities for the MonadPulse ingestor service.
 import os
 import time
 import logging
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import OperationalError
 
@@ -35,7 +35,7 @@ def get_db_session(max_retries=10, retry_interval=3):
         try:
             db = SessionLocal()
             # Test the connection
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
             logger.info("INGESTOR: Database connection successful.")
             return db
         except OperationalError as e:
