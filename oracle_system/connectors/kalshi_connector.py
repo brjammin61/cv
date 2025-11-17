@@ -12,8 +12,13 @@ valid API credentials in config/api_keys.py
 import logging
 import random
 import time
+import hashlib
+import base64
 from typing import Optional, Dict, List
 from datetime import datetime
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.backends import default_backend
 
 from .data_models import OrderBookData, MarketData, Exchange
 
@@ -51,12 +56,13 @@ class KalshiConnector:
         self.client = None
         self.connected = False
 
-        # Import API key from config if not provided
+        # Import API key and private key path from config if not provided
         if api_key is None and not simulate_data:
             try:
-                from config.api_keys import KALSHI_API_KEY
+                from config.api_keys import KALSHI_API_KEY, KALSHI_PRIVATE_KEY_PATH
                 self.api_key = KALSHI_API_KEY
-                logger.info("Loaded Kalshi API key from config")
+                self.private_key_path = private_key_path or KALSHI_PRIVATE_KEY_PATH
+                logger.info("Loaded Kalshi API credentials from config")
             except ImportError:
                 logger.warning("No API key provided and config not found")
                 self.simulate_data = True
@@ -69,7 +75,7 @@ class KalshiConnector:
 
     def _initialize_real_client(self):
         """
-        Initialize the real Kalshi API client using HTTP requests.
+        Initialize the real Kalshi API client using HTTP requests with RSA signature auth.
         """
         try:
             import requests
@@ -80,27 +86,33 @@ class KalshiConnector:
             else:
                 self.api_base = "https://api.elections.kalshi.com/trade-api/v2"
 
-            # Set up headers for authentication
-            self.headers = {
-                "Authorization": f"Bearer {self.api_key}",
-                "Content-Type": "application/json"
-            }
+            # Load private key if path provided
+            self.private_key = None
+            if self.private_key_path:
+                try:
+                    with open(self.private_key_path, 'rb') as key_file:
+                        self.private_key = serialization.load_pem_private_key(
+                            key_file.read(),
+                            password=None,
+                            backend=default_backend()
+                        )
+                    logger.info("Loaded RSA private key")
+                except Exception as e:
+                    logger.warning(f"Failed to load private key: {e}")
+                    logger.info("Falling back to simulation mode")
+                    self.simulate_data = True
+                    self.connected = False
+                    return
 
-            # Test connection
-            response = requests.get(
-                f"{self.api_base}/exchange/status",
-                headers=self.headers,
-                timeout=10
-            )
+            # Test connection with signed request
+            response = self._make_request('GET', '/exchange/status')
 
-            if response.status_code in [200, 403]:
-                # 200 = success, 403 = may work when run locally (not in restricted environment)
+            if response and response.status_code == 200:
                 self.connected = True
                 logger.info(f"✅ Kalshi connector initialized ({'DEMO' if self.use_demo else 'PRODUCTION'})")
-                if response.status_code == 403:
-                    logger.warning("⚠️ API returned 403 - may need to run from local machine")
             else:
-                logger.error(f"❌ Failed to connect: {response.status_code}")
+                status = response.status_code if response else 'No response'
+                logger.error(f"❌ Failed to connect: {status}")
                 self.connected = False
                 self.simulate_data = True
 
@@ -108,6 +120,81 @@ class KalshiConnector:
             logger.error(f"❌ Failed to initialize Kalshi client: {e}")
             self.connected = False
             self.simulate_data = True
+
+    def _generate_signature(self, timestamp_str: str, method: str, path: str) -> str:
+        """
+        Generate RSA signature for Kalshi API request.
+
+        Args:
+            timestamp_str: Request timestamp in milliseconds
+            method: HTTP method (GET, POST, etc.)
+            path: Request path (e.g., '/exchange/status')
+
+        Returns:
+            Base64-encoded signature
+        """
+        # Message to sign: timestamp + method + path
+        message = timestamp_str + method + path
+        message_bytes = message.encode('utf-8')
+
+        # Sign with RSA private key using PSS padding
+        signature = self.private_key.sign(
+            message_bytes,
+            padding.PSS(
+                mgf=padding.MGF1(hashes.SHA256()),
+                salt_length=padding.PSS.MAX_LENGTH
+            ),
+            hashes.SHA256()
+        )
+
+        # Return base64-encoded signature
+        return base64.b64encode(signature).decode('utf-8')
+
+    def _make_request(self, method: str, path: str, params: Dict = None) -> Optional[object]:
+        """
+        Make an authenticated request to Kalshi API.
+
+        Args:
+            method: HTTP method (GET, POST, etc.)
+            path: API path (e.g., '/markets')
+            params: Query parameters
+
+        Returns:
+            Response object or None
+        """
+        try:
+            import requests
+
+            # Generate timestamp (milliseconds since epoch)
+            timestamp_ms = int(time.time() * 1000)
+            timestamp_str = str(timestamp_ms)
+
+            # Generate signature
+            signature = self._generate_signature(timestamp_str, method, path)
+
+            # Build headers with Kalshi's custom authentication
+            headers = {
+                'KALSHI-ACCESS-KEY': self.api_key,
+                'KALSHI-ACCESS-SIGNATURE': signature,
+                'KALSHI-ACCESS-TIMESTAMP': timestamp_str,
+                'Content-Type': 'application/json'
+            }
+
+            # Make request
+            url = f"{self.api_base}{path}"
+            response = requests.request(
+                method=method,
+                url=url,
+                headers=headers,
+                params=params,
+                timeout=10
+            )
+
+            return response
+
+        except Exception as e:
+            logger.error(f"Request failed: {e}")
+            return None
 
     def get_order_book(self, market_ticker: str, market_name: str = None) -> Optional[OrderBookData]:
         """
@@ -129,29 +216,20 @@ class KalshiConnector:
 
         # Real API implementation
         try:
-            import requests
-
             # Get market details
-            market_response = requests.get(
-                f"{self.api_base}/markets/{market_ticker}",
-                headers=self.headers,
-                timeout=10
-            )
+            market_response = self._make_request('GET', f'/markets/{market_ticker}')
 
-            if market_response.status_code != 200:
-                logger.warning(f"Failed to fetch market {market_ticker}: {market_response.status_code}")
+            if not market_response or market_response.status_code != 200:
+                status = market_response.status_code if market_response else 'No response'
+                logger.warning(f"Failed to fetch market {market_ticker}: {status}")
                 return self._simulate_order_book(market_ticker, market_name)
 
             market_data = market_response.json()
 
             # Get orderbook
-            orderbook_response = requests.get(
-                f"{self.api_base}/markets/{market_ticker}/orderbook",
-                headers=self.headers,
-                timeout=10
-            )
+            orderbook_response = self._make_request('GET', f'/markets/{market_ticker}/orderbook')
 
-            if orderbook_response.status_code != 200:
+            if not orderbook_response or orderbook_response.status_code != 200:
                 logger.warning(f"Failed to fetch orderbook for {market_ticker}")
                 return self._simulate_order_book(market_ticker, market_name)
 

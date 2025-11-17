@@ -7,12 +7,53 @@ Run this on your local machine to find real market tickers.
 
 import requests
 import json
-from config.api_keys import KALSHI_API_KEY, KALSHI_API_BASE
+import time
+import base64
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import padding
+from cryptography.hazmat.backends import default_backend
+from config.api_keys import KALSHI_API_KEY, KALSHI_API_BASE, KALSHI_PRIVATE_KEY_PATH
 
-headers = {
-    'Authorization': f'Bearer {KALSHI_API_KEY}',
-    'Content-Type': 'application/json'
-}
+# Load private key
+with open(KALSHI_PRIVATE_KEY_PATH, 'rb') as key_file:
+    private_key = serialization.load_pem_private_key(
+        key_file.read(),
+        password=None,
+        backend=default_backend()
+    )
+
+def generate_signature(timestamp_str: str, method: str, path: str) -> str:
+    """Generate RSA signature for Kalshi API request."""
+    message = timestamp_str + method + path
+    message_bytes = message.encode('utf-8')
+
+    signature = private_key.sign(
+        message_bytes,
+        padding.PSS(
+            mgf=padding.MGF1(hashes.SHA256()),
+            salt_length=padding.PSS.MAX_LENGTH
+        ),
+        hashes.SHA256()
+    )
+
+    return base64.b64encode(signature).decode('utf-8')
+
+def make_request(method: str, path: str, params: dict = None):
+    """Make an authenticated request to Kalshi API."""
+    timestamp_ms = int(time.time() * 1000)
+    timestamp_str = str(timestamp_ms)
+
+    signature = generate_signature(timestamp_str, method, path)
+
+    headers = {
+        'KALSHI-ACCESS-KEY': KALSHI_API_KEY,
+        'KALSHI-ACCESS-SIGNATURE': signature,
+        'KALSHI-ACCESS-TIMESTAMP': timestamp_str,
+        'Content-Type': 'application/json'
+    }
+
+    url = f"{KALSHI_API_BASE}{path}"
+    return requests.request(method=method, url=url, headers=headers, params=params, timeout=10)
 
 print("=" * 80)
 print("🔍 KALSHI MARKET DISCOVERY")
@@ -23,12 +64,7 @@ print("=" * 80)
 # 1. Get all events (event series)
 print("\n[1] Fetching EVENT SERIES...")
 try:
-    response = requests.get(
-        f"{KALSHI_API_BASE}/events",
-        headers=headers,
-        params={'limit': 100, 'status': 'open'},
-        timeout=10
-    )
+    response = make_request('GET', '/events', params={'limit': 100, 'status': 'open'})
 
     if response.status_code == 200:
         data = response.json()
@@ -77,14 +113,9 @@ search_terms = [
 
 for term in search_terms:
     try:
-        response = requests.get(
-            f"{KALSHI_API_BASE}/events",
-            headers=headers,
-            params={'limit': 10, 'status': 'open', 'search': term},
-            timeout=10
-        )
+        response = make_request('GET', '/events', params={'limit': 10, 'status': 'open', 'search': term})
 
-        if response.status_code == 200:
+        if response and response.status_code == 200:
             data = response.json()
             events = data.get('events', [])
             if events:
@@ -117,12 +148,8 @@ test_tickers = [
 print("\nTesting common ticker patterns...")
 for ticker in test_tickers:
     try:
-        response = requests.get(
-            f"{KALSHI_API_BASE}/markets/{ticker}",
-            headers=headers,
-            timeout=5
-        )
-        if response.status_code == 200:
+        response = make_request('GET', f'/markets/{ticker}')
+        if response and response.status_code == 200:
             data = response.json()
             market = data.get('market', {})
             print(f"  ✅ {ticker}: {market.get('title', 'No title')}")
@@ -137,14 +164,9 @@ print("=" * 80)
 
 try:
     # First get events
-    response = requests.get(
-        f"{KALSHI_API_BASE}/events",
-        headers=headers,
-        params={'limit': 20, 'status': 'open'},
-        timeout=10
-    )
+    response = make_request('GET', '/events', params={'limit': 20, 'status': 'open'})
 
-    if response.status_code == 200:
+    if response and response.status_code == 200:
         events = response.json().get('events', [])
 
         # For each event, get its markets
@@ -154,14 +176,9 @@ try:
 
             if event_ticker:
                 try:
-                    markets_response = requests.get(
-                        f"{KALSHI_API_BASE}/markets",
-                        headers=headers,
-                        params={'event_ticker': event_ticker, 'limit': 10},
-                        timeout=10
-                    )
+                    markets_response = make_request('GET', '/markets', params={'event_ticker': event_ticker, 'limit': 10})
 
-                    if markets_response.status_code == 200:
+                    if markets_response and markets_response.status_code == 200:
                         markets = markets_response.json().get('markets', [])
                         if markets:
                             print(f"\n📊 {event.get('title', 'No title')[:60]}")
