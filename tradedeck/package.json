@@ -28,5 +28,8 @@
     "tailwindcss": "^4.1.17",
     "typescript": "^5.9.3",
     "zustand": "^5.0.8"
+  },
+  "devDependencies": {
+    "tsx": "^4.20.6"
   }
 }
