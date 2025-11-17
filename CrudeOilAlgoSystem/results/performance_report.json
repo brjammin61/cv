@@ -1,0 +1,24 @@
+{
+  "timestamp": "2025-11-17T07:31:41.874288",
+  "grid_search_summary": {
+    "total_combinations_tested": 81,
+    "best_sharpe_ratio": 0.5283126124915813,
+    "best_profit_factor": 1.1902165506573863,
+    "best_total_pnl": 56179.99999999967,
+    "avg_win_rate": 0.5001004874576708,
+    "best_params": {
+      "vwap_period": 25,
+      "stddev_mult": 1.5,
+      "stop_loss_ticks": 30,
+      "target_ticks": 15
+    }
+  },
+  "walk_forward_summary": {
+    "total_windows": 0,
+    "avg_oos_pnl": NaN,
+    "avg_oos_profit_factor": NaN,
+    "avg_oos_sharpe": NaN,
+    "profitable_windows": 0,
+    "most_stable_params": null
+  }
+}
