@@ -1,0 +1,151 @@
+{
+  "prop_firms": {
+    "topstep": {
+      "name": "Topstep",
+      "drawdown_type": "EOD",
+      "evaluation_tiers": [
+        {
+          "tier": "50K",
+          "profit_target": 3000,
+          "max_drawdown": 2000,
+          "daily_loss_limit": 1000,
+          "consistency_rule": false,
+          "evaluation_fee": 150
+        },
+        {
+          "tier": "100K",
+          "profit_target": 6000,
+          "max_drawdown": 3000,
+          "daily_loss_limit": 2000,
+          "consistency_rule": false,
+          "evaluation_fee": 325
+        },
+        {
+          "tier": "150K",
+          "profit_target": 9000,
+          "max_drawdown": 4500,
+          "daily_loss_limit": 3000,
+          "consistency_rule": false,
+          "evaluation_fee": 375
+        }
+      ],
+      "profit_split": {
+        "first_10k": 1.0,
+        "thereafter": 0.9
+      },
+      "notes": "EOD trailing drawdown. More forgiving for intraday volatility. No consistency rule."
+    },
+    "apex": {
+      "name": "Apex Trader Funding",
+      "drawdown_type": "realtime_trailing",
+      "evaluation_tiers": [
+        {
+          "tier": "25K",
+          "profit_target": 1500,
+          "max_drawdown": 1250,
+          "daily_loss_limit": 600,
+          "consistency_rule": false,
+          "evaluation_fee": 147
+        },
+        {
+          "tier": "50K",
+          "profit_target": 3000,
+          "max_drawdown": 2500,
+          "daily_loss_limit": 1200,
+          "consistency_rule": false,
+          "evaluation_fee": 167
+        },
+        {
+          "tier": "100K",
+          "profit_target": 6000,
+          "max_drawdown": 5000,
+          "daily_loss_limit": 2400,
+          "consistency_rule": false,
+          "evaluation_fee": 297
+        }
+      ],
+      "profit_split": {
+        "default": 1.0
+      },
+      "notes": "Real-time high-water mark trailing drawdown. Requires aggressive profit protection."
+    },
+    "alpha_futures": {
+      "name": "Alpha Futures",
+      "drawdown_type": "realtime_trailing",
+      "evaluation_tiers": [
+        {
+          "tier": "50K",
+          "profit_target": 3000,
+          "max_drawdown": 2000,
+          "daily_loss_limit": 1000,
+          "consistency_rule": true,
+          "consistency_percentage": 0.40,
+          "evaluation_fee": 99
+        },
+        {
+          "tier": "100K",
+          "profit_target": 6000,
+          "max_drawdown": 4000,
+          "daily_loss_limit": 2000,
+          "consistency_rule": true,
+          "consistency_percentage": 0.40,
+          "evaluation_fee": 199
+        }
+      ],
+      "profit_split": {
+        "default": 0.80
+      },
+      "notes": "Real-time trailing with 40% consistency rule. Most restrictive for algo traders."
+    },
+    "brightfunded": {
+      "name": "BrightFunded",
+      "drawdown_type": "static",
+      "evaluation_tiers": [
+        {
+          "tier": "50K",
+          "profit_target": 3000,
+          "max_drawdown": 2500,
+          "daily_loss_limit": 1250,
+          "consistency_rule": false,
+          "evaluation_fee": 99
+        },
+        {
+          "tier": "100K",
+          "profit_target": 6000,
+          "max_drawdown": 5000,
+          "daily_loss_limit": 2500,
+          "consistency_rule": false,
+          "evaluation_fee": 199
+        }
+      ],
+      "profit_split": {
+        "default": 0.80,
+        "scaling": 0.90
+      },
+      "notes": "Static drawdown (doesn't trail). Good for swing traders. Uses TradeLocker platform."
+    }
+  },
+  "recommended_settings": {
+    "topstep": {
+      "aggressive_profit_lock": false,
+      "trailing_stop_strategy": "loose",
+      "swing_trading_friendly": true
+    },
+    "apex": {
+      "aggressive_profit_lock": true,
+      "trailing_stop_strategy": "tight",
+      "swing_trading_friendly": false
+    },
+    "alpha_futures": {
+      "aggressive_profit_lock": true,
+      "trailing_stop_strategy": "tight",
+      "swing_trading_friendly": false,
+      "profit_throttling": true
+    },
+    "brightfunded": {
+      "aggressive_profit_lock": false,
+      "trailing_stop_strategy": "medium",
+      "swing_trading_friendly": true
+    }
+  }
+}

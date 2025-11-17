@@ -1,0 +1,25 @@
+# Python ML Server Dependencies
+# ============================
+
+# Core dependencies
+pyzmq>=25.1.0              # ZeroMQ for communication with NinjaTrader
+numpy>=1.24.0              # Numerical computing
+pandas>=2.0.0              # Data manipulation
+
+# Machine Learning
+scikit-learn>=1.3.0        # Traditional ML algorithms
+tensorflow>=2.13.0         # Deep learning (optional)
+keras>=2.13.0              # High-level neural networks API
+joblib>=1.3.0              # Model serialization
+
+# Data Analysis
+matplotlib>=3.7.0          # Plotting
+seaborn>=0.12.0            # Statistical visualization
+
+# Utilities
+python-dateutil>=2.8.2     # Date parsing
+requests>=2.31.0           # HTTP requests for data fetching
+
+# Optional: Advanced features
+# ta-lib                   # Technical analysis library (requires binary install)
+# yfinance>=0.2.0          # Yahoo Finance data

@@ -1,0 +1,110 @@
+{
+  "strategy_name": "CrudeOilMasterStrategy",
+  "version": "1.0.0",
+  "description": "Advanced algorithmic trading system for Crude Oil futures with prop firm compliance",
+
+  "instruments": {
+    "primary": "CL",
+    "micro": "MCL",
+    "description": "WTI Crude Oil Futures (NYMEX)",
+    "tick_size": 0.01,
+    "tick_value": 10.0,
+    "contract_multiplier": 1000
+  },
+
+  "risk_management": {
+    "daily_loss_limit": 1000,
+    "trailing_drawdown": 2000,
+    "enable_trailing_protection": true,
+    "default_position_size": 1,
+    "stop_loss_ticks": 25,
+    "max_daily_trades": 10,
+    "max_position_size": 3,
+    "breakeven_trigger_ticks": 12,
+    "slippage_assumption_ticks": 2
+  },
+
+  "prop_firm_compliance": {
+    "enable_consistency_rule": true,
+    "consistency_percentage": 0.40,
+    "evaluation_profit_target": 3000,
+    "enable_news_filter": true,
+    "news_calendar_path": "C:\\AlgoTrading\\NewsCalendar.csv",
+    "news_blackout_minutes": 5,
+    "firm_type": "trailing_drawdown"
+  },
+
+  "strategies": {
+    "vwap_mean_reversion": {
+      "enabled": true,
+      "stddev_multiplier": 2.0,
+      "anchor_session": "Trading",
+      "target_ticks": 20,
+      "minimum_confidence": 0.6,
+      "reversal_pattern_required": true
+    },
+    "eia_momentum": {
+      "enabled": false,
+      "fibonacci_retracement_level": 0.618,
+      "impulse_minimum_ticks": 15,
+      "entry_timeout_minutes": 60,
+      "active_day": "Wednesday",
+      "active_time": "10:30:00"
+    },
+    "amt_volume_profile": {
+      "enabled": true,
+      "value_area_percentage": 0.70,
+      "fade_edge_percentage": 0.20,
+      "breakout_confirmation_volume": 1.5
+    }
+  },
+
+  "regime_detection": {
+    "high_volatility_threshold": 45,
+    "low_volatility_threshold": 30,
+    "atr_period": 14,
+    "cvol_proxy_multiplier": 10,
+    "regime_switch_bars": 5
+  },
+
+  "ml_integration": {
+    "enabled": false,
+    "server_address": "127.0.0.1",
+    "server_port": 5555,
+    "timeout_ms": 5000,
+    "minimum_confidence": 0.65,
+    "health_check_interval_seconds": 60,
+    "fallback_on_error": true
+  },
+
+  "session_times": {
+    "pit_session": {
+      "start": "09:00:00",
+      "end": "14:30:00",
+      "timezone": "US/Eastern"
+    },
+    "globex_session": {
+      "start": "18:00:00",
+      "end": "17:00:00",
+      "timezone": "US/Eastern"
+    },
+    "preferred_session": "pit"
+  },
+
+  "backtesting": {
+    "enable_tick_replay": true,
+    "start_date": "2024-01-01",
+    "end_date": "2024-12-31",
+    "walk_forward_window_days": 90,
+    "optimization_metric": "sharpe_ratio",
+    "minimum_trades": 100
+  },
+
+  "logging": {
+    "level": "INFO",
+    "log_trades": true,
+    "log_signals": true,
+    "log_risk_events": true,
+    "output_path": "C:\\AlgoTrading\\Logs"
+  }
+}
