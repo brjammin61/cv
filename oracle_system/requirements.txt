@@ -24,7 +24,7 @@ eth-account>=0.9.0
 
 # HTTP & WebSocket Communication
 requests>=2.31.0
-websockets>=12.0
+websockets>=11.0  # For realtime WebSocket streaming
 aiohttp>=3.9.0
 
 # Data Storage

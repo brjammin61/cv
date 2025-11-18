@@ -14,7 +14,9 @@ import random
 import time
 import hashlib
 import base64
-from typing import Optional, Dict, List
+import asyncio
+import json
+from typing import Optional, Dict, List, Callable
 from datetime import datetime
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -55,6 +57,10 @@ class KalshiConnector:
 
         self.client = None
         self.connected = False
+        self.ws_client = None
+        self.ws_connected = False
+        self.ws_task = None
+        self.market_callbacks = {}  # market_ticker -> callback function
 
         # Import API key and private key path from config if not provided
         if api_key is None and not simulate_data:
@@ -373,12 +379,158 @@ class KalshiConnector:
 
         return markets
 
+    async def connect_websocket(self):
+        """
+        Connect to Kalshi WebSocket for real-time market data.
+        """
+        if self.simulate_data:
+            logger.info("WebSocket not available in simulation mode")
+            return
+
+        try:
+            import websockets
+
+            # Kalshi WebSocket URL
+            if self.use_demo:
+                ws_url = "wss://demo-api.kalshi.co/trade-api/ws/v2"
+            else:
+                ws_url = "wss://api.elections.kalshi.com/trade-api/ws/v2"
+
+            self.ws_client = await websockets.connect(ws_url)
+            self.ws_connected = True
+            logger.info(f"✅ WebSocket connected to Kalshi")
+
+            # Start message handler
+            self.ws_task = asyncio.create_task(self._handle_websocket_messages())
+
+        except Exception as e:
+            logger.error(f"❌ WebSocket connection failed: {e}")
+            self.ws_connected = False
+
+    async def _handle_websocket_messages(self):
+        """Handle incoming WebSocket messages."""
+        try:
+            async for message in self.ws_client:
+                data = json.loads(message)
+                await self._process_ws_message(data)
+        except Exception as e:
+            logger.error(f"WebSocket message handler error: {e}")
+            self.ws_connected = False
+            # Attempt reconnection
+            await asyncio.sleep(5)
+            await self.connect_websocket()
+
+    async def _process_ws_message(self, data: Dict):
+        """Process WebSocket message and trigger callbacks."""
+        try:
+            msg_type = data.get('type')
+
+            if msg_type == 'orderbook_delta':
+                # Orderbook update
+                market_ticker = data.get('market_ticker')
+
+                if market_ticker in self.market_callbacks:
+                    # Parse orderbook data
+                    order_book = self._parse_ws_orderbook(data)
+
+                    # Trigger callback
+                    callback = self.market_callbacks[market_ticker]
+                    if asyncio.iscoroutinefunction(callback):
+                        await callback(order_book)
+                    else:
+                        callback(order_book)
+
+        except Exception as e:
+            logger.error(f"Error processing WebSocket message: {e}")
+
+    def _parse_ws_orderbook(self, data: Dict) -> OrderBookData:
+        """Parse WebSocket orderbook data into OrderBookData object."""
+        market_ticker = data.get('market_ticker', '')
+
+        # Extract best bid/ask from delta
+        yes_data = data.get('yes', {})
+        bids = yes_data.get('bids', [])
+        asks = yes_data.get('asks', [])
+
+        best_bid = float(bids[0][0]) / 100 if bids else 0.0
+        best_ask = float(asks[0][0]) / 100 if asks else 1.0
+        bid_size = float(bids[0][1]) if bids else 0.0
+        ask_size = float(asks[0][1]) if asks else 0.0
+
+        return OrderBookData(
+            exchange=Exchange.KALSHI,
+            market_id=market_ticker,
+            market_name=data.get('market_name', market_ticker),
+            best_bid=best_bid,
+            best_ask=best_ask,
+            bid_size=bid_size,
+            ask_size=ask_size,
+            timestamp=datetime.now()
+        )
+
+    async def subscribe_market(self, market_ticker: str, callback: Callable):
+        """
+        Subscribe to real-time updates for a market.
+
+        Args:
+            market_ticker: Kalshi market ticker
+            callback: Function to call on updates (receives OrderBookData)
+        """
+        if not self.ws_connected:
+            await self.connect_websocket()
+
+        if not self.ws_connected:
+            logger.error("Cannot subscribe: WebSocket not connected")
+            return
+
+        # Store callback
+        self.market_callbacks[market_ticker] = callback
+
+        # Send subscription message
+        subscribe_msg = {
+            "type": "subscribe",
+            "channel": "orderbook_delta",
+            "market_ticker": market_ticker
+        }
+
+        try:
+            await self.ws_client.send(json.dumps(subscribe_msg))
+            logger.info(f"📡 Subscribed to {market_ticker} (live updates)")
+        except Exception as e:
+            logger.error(f"Failed to subscribe to {market_ticker}: {e}")
+
+    async def unsubscribe_market(self, market_ticker: str):
+        """Unsubscribe from market updates."""
+        if market_ticker in self.market_callbacks:
+            del self.market_callbacks[market_ticker]
+
+        if self.ws_connected:
+            unsubscribe_msg = {
+                "type": "unsubscribe",
+                "channel": "orderbook_delta",
+                "market_ticker": market_ticker
+            }
+
+            try:
+                await self.ws_client.send(json.dumps(unsubscribe_msg))
+                logger.info(f"Unsubscribed from {market_ticker}")
+            except Exception as e:
+                logger.error(f"Failed to unsubscribe from {market_ticker}: {e}")
+
     def close(self):
         """Close connection to Kalshi."""
+        # Close WebSocket
+        if self.ws_task:
+            self.ws_task.cancel()
+        if self.ws_client:
+            asyncio.get_event_loop().run_until_complete(self.ws_client.close())
+
         if self.client:
             # Close real client if applicable
             pass
+
         self.connected = False
+        self.ws_connected = False
         logger.info("Disconnected from Kalshi")
 
 
