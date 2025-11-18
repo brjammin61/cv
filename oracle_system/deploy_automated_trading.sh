@@ -19,7 +19,10 @@ fi
 echo "[1] Creating backup..."
 BACKUP_DIR="backups/pre-auto-trading-$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP_DIR"
-cp -r . "$BACKUP_DIR/"
+# Copy all files except backups directory
+rsync -a --exclude='backups' --exclude='logs/*.log' --exclude='data/*.db' --exclude='.git' --exclude='__pycache__' . "$BACKUP_DIR/" 2>/dev/null || \
+    find . -maxdepth 1 -type f -exec cp {} "$BACKUP_DIR/" \; && \
+    find . -maxdepth 1 -type d ! -name '.' ! -name 'backups' ! -name '.git' -exec cp -r {} "$BACKUP_DIR/" \;
 echo "✅ Backup created: $BACKUP_DIR"
 echo
 
