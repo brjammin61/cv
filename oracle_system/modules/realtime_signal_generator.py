@@ -316,7 +316,7 @@ class RealtimeSignalGenerator:
         for signal in signals:
             cursor.execute("""
                 INSERT INTO signals (
-                    timestamp, strategy, market_name, market_ticker,
+                    timestamp, strategy, market_name, market_id,
                     signal_type, edge_cents, conviction,
                     entry_price, current_price, profit_loss, status
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
