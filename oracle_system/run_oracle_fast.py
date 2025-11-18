@@ -20,6 +20,8 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from modules.mod_06_data_collector import DataCollector
 from modules.realtime_signal_generator import RealtimeSignalGenerator
+from modules.mod_09_auto_executor import AutoExecutor, ExecutionMode
+from modules.mod_10_ml_optimizer import MLOptimizer
 
 # Setup logging
 def setup_logging():
@@ -63,12 +65,31 @@ class OracleFastPolling:
 
         self.signal_generator = RealtimeSignalGenerator()
 
+        # Initialize Auto-Executor
+        execution_mode = ExecutionMode.PAPER if mode == "paper" else ExecutionMode.LIVE
+
+        self.auto_executor = AutoExecutor(
+            mode=execution_mode,
+            max_position_size_usd=50.0,  # Conservative $50 max per trade
+            max_total_exposure_usd=250.0,  # Max $250 total exposure
+            min_edge_to_trade=3.0,  # Minimum 3 cent edge
+            min_conviction="MEDIUM",  # Allow MEDIUM+ signals
+            max_trades_per_day=10,  # Max 10 trades per day
+            kalshi_connector=self.data_collector.kalshi  # Pass Kalshi connector
+        )
+
+        # Initialize ML Optimizer
+        self.ml_optimizer = MLOptimizer(db_path="data/oracle_data.db")
+
         # Statistics
         self.cycles_completed = 0
         self.signals_generated = 0
+        self.trades_executed = 0
         self.start_time = None
 
         logger.info(f"🔮 Oracle initialized in FAST POLLING mode ({mode.upper()})")
+        logger.info(f"📝 Auto-Execution: {'ENABLED (PAPER MODE)' if mode == 'paper' else 'ENABLED (LIVE MODE - REAL MONEY)'}")
+        logger.info(f"🧠 ML Optimizer: ENABLED")
 
     async def _collection_loop(self):
         """Data collection loop (every 30 seconds)."""
@@ -123,6 +144,37 @@ class OracleFastPolling:
                                         f"Conviction: {signal.conviction}"
                                     )
 
+                                    # Convert Signal to dict for auto_executor
+                                    signal_dict = {
+                                        'strategy': signal.strategy,
+                                        'market_name': signal.market_name,
+                                        'market_ticker': signal.market_ticker,
+                                        'market_id': signal.market_ticker,
+                                        'signal_type': signal.signal_type,
+                                        'edge_cents': signal.edge_cents,
+                                        'conviction': signal.conviction,
+                                        'market_price': signal.entry_price or order_book.mid_price,
+                                        'rationale': f"{signal.strategy} - {signal.conviction} conviction"
+                                    }
+
+                                    # Evaluate if we should execute this signal
+                                    should_execute, reason, position_size = self.auto_executor.should_execute_signal(signal_dict)
+
+                                    if should_execute:
+                                        # Execute the trade (paper or live)
+                                        logger.info(f"✅ Executing: {reason}")
+                                        result = self.auto_executor.execute_trade(signal_dict, position_size)
+
+                                        if result and result.get('executed'):
+                                            self.trades_executed += 1
+                                            logger.info(
+                                                f"💵 TRADE EXECUTED: {result['mode'].upper()} | "
+                                                f"Size: ${position_size:.2f} | "
+                                                f"Order: {result.get('order_id', 'N/A')}"
+                                            )
+                                    else:
+                                        logger.debug(f"⏭️  Skipping: {reason}")
+
                 # Wait 30 seconds
                 await asyncio.sleep(30)
 
@@ -170,13 +222,33 @@ class OracleFastPolling:
                 await asyncio.sleep(1800)  # 30 minutes
 
                 logger.info("🧠 Running ML optimization...")
-                # TODO: Implement actual ML optimization
+
+                # Prepare training data from recent market snapshots
+                X, y = self.ml_optimizer.prepare_training_data(days=7)
+
+                if len(X) > 10:
+                    # Train price predictor
+                    self.ml_optimizer.train_price_predictor(X, y)
+
+                # Optimize strategy parameters based on outcomes
+                optimized_params = self.ml_optimizer.optimize_parameters(strategy="all")
+
+                if optimized_params:
+                    logger.info(f"✅ Optimized {len(optimized_params)} strategies")
+                    for strategy, params in optimized_params.items():
+                        logger.info(
+                            f"  {strategy}: min_edge={params['min_edge_threshold']:.2f}¢, "
+                            f"win_rate={params['expected_win_rate']:.1%}"
+                        )
+                else:
+                    logger.info("ℹ️  Not enough trade history for optimization yet")
+
                 logger.info("✅ ML optimization complete")
 
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.error(f"ML optimizer error: {e}")
+                logger.error(f"ML optimizer error: {e}", exc_info=True)
 
     async def start(self):
         """Start The Oracle in fast polling mode."""
@@ -231,6 +303,12 @@ class OracleFastPolling:
         logger.info("=" * 80)
         logger.info(f"Collection Cycles: {self.cycles_completed}")
         logger.info(f"Signals Generated: {self.signals_generated}")
+        logger.info(f"Trades Executed: {self.trades_executed}")
+
+        # Get executor stats
+        executor_stats = self.auto_executor.get_status()
+        logger.info(f"Win Rate: {executor_stats['win_rate']:.1f}%")
+        logger.info(f"Total P&L: ${executor_stats['total_pnl']:.2f}")
 
         if self.start_time:
             runtime = (datetime.now() - self.start_time).total_seconds()

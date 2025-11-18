@@ -50,7 +50,8 @@ class AutoExecutor:
         min_edge_to_trade: float = 3.0,
         min_conviction: str = "HIGH",
         max_trades_per_day: int = 5,
-        emergency_stop: bool = False
+        emergency_stop: bool = False,
+        kalshi_connector=None
     ):
         """
         Initialize the auto-executor.
@@ -63,6 +64,7 @@ class AutoExecutor:
             min_conviction: Minimum conviction level
             max_trades_per_day: Maximum trades per 24 hours
             emergency_stop: Emergency kill switch
+            kalshi_connector: KalshiConnector instance for order placement
         """
         self.mode = mode
         self.max_position_size = max_position_size_usd
@@ -71,6 +73,7 @@ class AutoExecutor:
         self.min_conviction = min_conviction
         self.max_trades_per_day = max_trades_per_day
         self.emergency_stop = emergency_stop
+        self.kalshi = kalshi_connector
 
         # Initialize trackers
         self.signal_tracker = SignalTracker()
@@ -290,11 +293,36 @@ class AutoExecutor:
         edge = signal.get('edge_cents', 0)
 
         if self.mode == ExecutionMode.PAPER:
-            # Paper trading - log only
+            # Paper trading - simulated orders for tracking outcomes
             logger.info(
                 f"📝 PAPER TRADE: {signal_type} on {market_name} "
                 f"(${position_size:.2f}, edge={edge:.2f}¢)"
             )
+
+            # Determine side: BUY signal = YES, SELL signal = NO
+            side = "yes" if signal_type.upper() == "BUY" else "no"
+
+            # Calculate number of contracts
+            market_price_cents = int(signal.get('market_price', 0.5) * 100)
+            if market_price_cents == 0:
+                market_price_cents = 5000  # Default to 50 cents
+
+            num_contracts = int((position_size * 100) / market_price_cents)
+            if num_contracts < 1:
+                num_contracts = 1  # Minimum 1 contract for paper trading
+
+            # Place paper order if Kalshi connector available
+            order_result = None
+            if self.kalshi:
+                ticker = signal.get('market_ticker') or signal.get('market_id', '')
+                if ticker:
+                    order_result = self.kalshi.place_order(
+                        ticker=ticker,
+                        side=side,
+                        count=num_contracts,
+                        price_cents=market_price_cents,
+                        paper_mode=True  # PAPER ORDER
+                    )
 
             # Log to signal tracker
             signal_id = self.signal_tracker.log_signal(
@@ -304,15 +332,26 @@ class AutoExecutor:
                 edge_cents=edge,
                 conviction=signal.get('conviction', 'MEDIUM'),
                 market_price=signal.get('market_price'),
-                rationale=signal.get('rationale', 'Auto-executed'),
-                metadata={'mode': 'paper', 'position_size_usd': position_size}
+                rationale=signal.get('rationale', 'Auto-executed paper trade'),
+                metadata={
+                    'mode': 'paper',
+                    'position_size_usd': position_size,
+                    'contracts': num_contracts,
+                    'order_id': order_result['order_id'] if order_result else None
+                }
             )
+
+            # Update tracking (even for paper trades)
+            self.trades_today += 1
+            self.total_trades += 1
 
             return {
                 'signal_id': signal_id,
                 'mode': 'paper',
                 'executed': True,
-                'position_size': position_size
+                'position_size': position_size,
+                'contracts': num_contracts,
+                'order_id': order_result['order_id'] if order_result else None
             }
 
         elif self.mode == ExecutionMode.LIVE:
@@ -322,20 +361,74 @@ class AutoExecutor:
                 f"(${position_size:.2f}, edge={edge:.2f}¢)"
             )
 
-            # TODO: Implement actual trade execution via exchange APIs
-            # This would call KalshiConnector or PolymarketConnector to place orders
+            if not self.kalshi:
+                logger.error("❌ No Kalshi connector available for LIVE trading")
+                return None
 
-            # For now, raise an error to prevent accidental live execution
-            raise NotImplementedError(
-                "LIVE TRADING NOT YET IMPLEMENTED - "
-                "Requires explicit API integration and additional safety review"
+            # Determine side: BUY signal = YES, SELL signal = NO
+            side = "yes" if signal_type.upper() == "BUY" else "no"
+
+            # Calculate number of contracts
+            # Position size is in USD, each contract costs market_price
+            market_price_cents = int(signal.get('market_price', 0.5) * 100)
+            if market_price_cents == 0:
+                market_price_cents = 5000  # Default to 50 cents if unknown
+
+            num_contracts = int((position_size * 100) / market_price_cents)
+            if num_contracts < 1:
+                logger.warning(f"Position size too small for even 1 contract")
+                return None
+
+            # Place order via Kalshi
+            ticker = signal.get('market_ticker') or signal.get('market_id', '')
+            if not ticker:
+                logger.error("❌ No market ticker available")
+                return None
+
+            order_result = self.kalshi.place_order(
+                ticker=ticker,
+                side=side,
+                count=num_contracts,
+                price_cents=market_price_cents,
+                paper_mode=False  # REAL ORDER
             )
 
-            # When implemented:
-            # 1. Place order on exchange
-            # 2. Log to signal tracker
-            # 3. Update exposure tracking
-            # 4. Return execution result
+            if order_result:
+                # Log to signal tracker
+                signal_id = self.signal_tracker.log_signal(
+                    strategy=signal.get('strategy', 'Unknown'),
+                    market_name=market_name,
+                    signal_type=signal_type,
+                    edge_cents=edge,
+                    conviction=signal.get('conviction', 'MEDIUM'),
+                    market_price=signal.get('market_price'),
+                    rationale=f"Auto-executed LIVE: {order_result['order_id']}",
+                    metadata={
+                        'mode': 'live',
+                        'position_size_usd': position_size,
+                        'order_id': order_result['order_id'],
+                        'contracts': num_contracts
+                    }
+                )
+
+                # Update exposure tracking
+                self.current_exposure += position_size
+                self.trades_today += 1
+                self.total_trades += 1
+
+                logger.info(f"✅ LIVE order placed successfully: {order_result['order_id']}")
+
+                return {
+                    'signal_id': signal_id,
+                    'mode': 'live',
+                    'executed': True,
+                    'position_size': position_size,
+                    'order_id': order_result['order_id'],
+                    'contracts': num_contracts
+                }
+            else:
+                logger.error("❌ Failed to place LIVE order")
+                return None
 
     def emergency_shutdown(self):
         """

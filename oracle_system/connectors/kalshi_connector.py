@@ -575,6 +575,170 @@ class KalshiConnector:
             except Exception as e:
                 logger.error(f"Failed to unsubscribe from {market_ticker}: {e}")
 
+    def get_portfolio_balance(self) -> Optional[float]:
+        """
+        Get current portfolio balance.
+
+        Returns:
+            Balance in cents, or None if error
+        """
+        if self.simulate_data:
+            return self._simulate_balance()
+
+        try:
+            response = self._make_request('GET', '/portfolio/balance')
+
+            if response and response.status_code == 200:
+                data = response.json()
+                balance = data.get('balance', 0)
+                logger.debug(f"Portfolio balance: ${balance/100:.2f}")
+                return balance
+            else:
+                logger.error(f"Failed to get balance: {response.status_code if response else 'No response'}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error getting balance: {e}")
+            return None
+
+    def _simulate_balance(self) -> float:
+        """Simulate balance for paper trading."""
+        return 100000  # $1000 in cents
+
+    def place_order(
+        self,
+        ticker: str,
+        side: str,  # "yes" or "no"
+        count: int,  # number of contracts
+        price_cents: int,  # limit price in cents
+        paper_mode: bool = True
+    ) -> Optional[Dict]:
+        """
+        Place a limit order on Kalshi.
+
+        Args:
+            ticker: Market ticker (e.g., "KXBTCRESERVE-26-JAN01")
+            side: "yes" or "no"
+            count: Number of contracts to buy
+            price_cents: Limit price in cents (e.g., 4500 = $0.45)
+            paper_mode: If True, simulate order without placing it
+
+        Returns:
+            Order result dict or None
+        """
+        if paper_mode or self.simulate_data:
+            return self._simulate_order_placement(ticker, side, count, price_cents)
+
+        try:
+            import uuid
+
+            # Generate unique client order ID
+            client_order_id = f"oracle-{int(time.time() * 1000)}-{uuid.uuid4().hex[:8]}"
+
+            # Prepare order payload
+            order_payload = {
+                "ticker": ticker,
+                "client_order_id": client_order_id,
+                "side": side.lower(),
+                "action": "buy",
+                "count": count,
+                "type": "limit",
+                "yes_price": price_cents if side.lower() == "yes" else None,
+                "no_price": price_cents if side.lower() == "no" else None
+            }
+
+            # Remove None values
+            order_payload = {k: v for k, v in order_payload.items() if v is not None}
+
+            logger.info(f"Placing {side.upper()} order: {count} contracts @ {price_cents/100:.2f} on {ticker}")
+
+            response = self._make_request('POST', '/portfolio/orders', params=order_payload)
+
+            if response and response.status_code in [200, 201]:
+                data = response.json()
+                order_data = data.get('order', {})
+
+                logger.info(f"✅ Order placed: {order_data.get('order_id')} - Status: {order_data.get('status')}")
+
+                return {
+                    'order_id': order_data.get('order_id'),
+                    'status': order_data.get('status'),
+                    'ticker': ticker,
+                    'side': side,
+                    'count': count,
+                    'price_cents': price_cents,
+                    'remaining_count': order_data.get('remaining_count', count),
+                    'timestamp': datetime.now()
+                }
+            else:
+                logger.error(f"❌ Failed to place order: {response.status_code if response else 'No response'}")
+                if response:
+                    logger.error(f"Response: {response.text}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error placing order: {e}")
+            return None
+
+    def _simulate_order_placement(
+        self,
+        ticker: str,
+        side: str,
+        count: int,
+        price_cents: int
+    ) -> Dict:
+        """
+        Simulate order placement for paper trading.
+
+        Returns:
+            Simulated order result
+        """
+        import uuid
+
+        order_id = f"PAPER-{uuid.uuid4().hex[:12]}"
+
+        logger.info(
+            f"📝 PAPER ORDER: {side.upper()} {count} contracts @ ${price_cents/100:.2f} on {ticker}"
+        )
+
+        return {
+            'order_id': order_id,
+            'status': 'resting',  # Simulated as placed
+            'ticker': ticker,
+            'side': side,
+            'count': count,
+            'price_cents': price_cents,
+            'remaining_count': count,
+            'timestamp': datetime.now(),
+            'paper_mode': True
+        }
+
+    def get_positions(self) -> List[Dict]:
+        """
+        Get current open positions.
+
+        Returns:
+            List of position dicts
+        """
+        if self.simulate_data:
+            return []  # No positions in simulation
+
+        try:
+            response = self._make_request('GET', '/portfolio/positions')
+
+            if response and response.status_code == 200:
+                data = response.json()
+                positions = data.get('positions', [])
+                logger.debug(f"Found {len(positions)} open positions")
+                return positions
+            else:
+                logger.error(f"Failed to get positions: {response.status_code if response else 'No response'}")
+                return []
+
+        except Exception as e:
+            logger.error(f"Error getting positions: {e}")
+            return []
+
     def close(self):
         """Close connection to Kalshi."""
         # Close WebSocket
