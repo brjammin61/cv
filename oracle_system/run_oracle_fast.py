@@ -173,7 +173,7 @@ class OracleFastPolling:
                                                 f"Order: {result.get('order_id', 'N/A')}"
                                             )
                                     else:
-                                        logger.debug(f"⏭️  Skipping: {reason}")
+                                        logger.info(f"⏭️  Skipping: {reason}")  # Changed from debug to info
 
                 # Wait 30 seconds
                 await asyncio.sleep(30)
