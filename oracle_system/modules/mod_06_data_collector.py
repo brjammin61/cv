@@ -50,10 +50,9 @@ class DataCollector:
         # Initialize database
         self._init_database()
 
-        # Initialize connectors (using simulation mode by default)
-        # TODO: Set simulate_data=False when you have API keys
-        self.kalshi = KalshiConnector(simulate_data=True)
-        self.polymarket = PolymarketConnector(simulate_data=True)
+        # Initialize connectors with REAL API credentials
+        self.kalshi = KalshiConnector(simulate_data=False)
+        self.polymarket = PolymarketConnector(simulate_data=False)
 
         # Load market registry
         self.registry = MarketRegistry()
