@@ -1,7 +1,14 @@
 """
-Market Registry Configuration - REAL MARKETS
+Market Registry Configuration - POLITICS & ECONOMICS ONLY
 
-This contains actual Kalshi market tickers for live trading.
+Oracle's competitive edge is in political prediction markets where behavioral
+biases (partisan wishful thinking, shy voter effect, favorite-longshot bias)
+create exploitable inefficiencies.
+
+We AVOID crypto/stock markets - those are too efficient and we'd be competing
+against professional arbitrage bots. Our strategies work on markets where
+humans bet emotionally, not rationally.
+
 Last updated: November 2024
 """
 
@@ -66,7 +73,7 @@ class MarketDefinition:
     min_liquidity_usd: float = 1000.0
 
     # Which strategies apply to this market
-    enable_bias_correction: bool = False
+    enable_bias_correction: bool = True  # Default TRUE for political markets
     enable_spatial_arb: bool = True
     enable_dutch_book: bool = False
     enable_rfr_analysis: bool = False
@@ -74,163 +81,255 @@ class MarketDefinition:
 
 class MarketRegistry:
     """
-    Registry of REAL markets to monitor.
-    
-    Updated with actual Kalshi tickers that are currently active.
+    Registry of REAL markets to monitor - POLITICS & ECONOMICS ONLY.
+
+    Our edge is in markets where behavioral biases dominate, not efficient
+    price-tracking markets. We beat partisan traders, not Renaissance.
     """
 
     def __init__(self):
-        """Initialize the market registry with real markets."""
+        """Initialize the market registry with politics/economics markets."""
         self.markets: List[MarketDefinition] = []
-        self._load_real_markets()
+        self._load_politics_economics_markets()
 
-    def _load_real_markets(self):
-        """Load real Kalshi markets - VERIFIED NOV 17, 2025."""
+    def _load_politics_economics_markets(self):
+        """
+        Load high-quality politics and economics markets.
+
+        FOCUS AREAS:
+        - 2026 Midterm Elections (House/Senate control, key races)
+        - Fed Rate Decisions (FOMC meetings)
+        - Economic Indicators (CPI, Jobs, GDP)
+        - Political Events (Shutdowns, legislation, confirmations)
+        """
 
         # ====================================================================
-        # CRYPTO - HIGHEST VOLUME MARKETS
+        # 2026 MIDTERM ELECTIONS - HIGHEST PRIORITY
+        # These markets have massive behavioral biases (partisan wishful thinking)
+        # and are perfect for Shy Voter, Favorite-Longshot, and Bias Correction
         # ====================================================================
 
         self.markets.append(MarketDefinition(
-            name="Bitcoin Reserve 2026",
-            category=MarketCategory.FINANCE,
+            name="House Control 2026 - Democrat",
+            category=MarketCategory.POLITICS_US,
             market_type=MarketType.BINARY,
-            kalshi_ticker="KXBTCRESERVE-26-JAN01",
-            description="Bitcoin Reserve by Jan 2026 (Volume: 2,298,247)",
-            enable_spatial_arb=True,
-            min_liquidity_usd=100000.0
-        ))
-
-        self.markets.append(MarketDefinition(
-            name="Bitcoin $150K by May 2026",
-            category=MarketCategory.FINANCE,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="KXBTCMAX150-25-26MAY31-149999.99",
-            description="BTC hits $150K by May 2026 (Volume: 440,594)",
+            kalshi_ticker="CONGRESS-2026H-D",  # Placeholder - update with real ticker
+            description="Democrats win House majority in 2026 midterms (High volume expected)",
+            resolution_date=date(2026, 11, 3),
+            enable_bias_correction=True,
             enable_spatial_arb=True,
             min_liquidity_usd=50000.0
         ))
 
         self.markets.append(MarketDefinition(
-            name="Bitcoin $150K by Apr 2026",
-            category=MarketCategory.FINANCE,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="KXBTCMAX150-25-26APR30-149999.99",
-            description="BTC hits $150K by April 2026 (Volume: 164,861)",
-            enable_spatial_arb=True,
-            min_liquidity_usd=20000.0
-        ))
-
-        # ====================================================================
-        # FINANCIALS - HIGH VOLUME
-        # ====================================================================
-
-        self.markets.append(MarketDefinition(
-            name="S&P 500 Max 2026 - $6999",
-            category=MarketCategory.FINANCE,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="KXINXMAXY-26-6999.99",
-            description="S&P 500 max $6999.99 in 2026 (Volume: 171,285)",
-            enable_spatial_arb=True,
-            min_liquidity_usd=20000.0
-        ))
-
-        self.markets.append(MarketDefinition(
-            name="S&P 500 Max 2026 - $7499",
-            category=MarketCategory.FINANCE,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="KXINXMAXY-26-7499.99",
-            description="S&P 500 max $7499.99 in 2026 (Volume: 31,881)",
-            enable_spatial_arb=True,
-            min_liquidity_usd=10000.0
-        ))
-
-        # ====================================================================
-        # POLITICS - ACTIVE TRADING
-        # ====================================================================
-
-        self.markets.append(MarketDefinition(
-            name="DC Federalization by Jan 2027",
+            name="Senate Control 2026 - Republican",
             category=MarketCategory.POLITICS_US,
             market_type=MarketType.BINARY,
-            kalshi_ticker="KXFEDDC-27JAN-FEDDC",
-            description="DC Federalization by Jan 2027 (Volume: 32,835)",
+            kalshi_ticker="CONGRESS-2026S-R",  # Placeholder - update with real ticker
+            description="Republicans win Senate majority in 2026 midterms (High volume expected)",
+            resolution_date=date(2026, 11, 3),
             enable_bias_correction=True,
             enable_spatial_arb=True,
-            min_liquidity_usd=10000.0
+            min_liquidity_usd=50000.0
         ))
+
+        # Key Senate Races - Competitive states where polling biases matter most
+
+        self.markets.append(MarketDefinition(
+            name="Arizona Senate 2026 - Democrat",
+            category=MarketCategory.POLITICS_US,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="SENATEAZ-26-D",  # Placeholder
+            description="Democrat wins Arizona Senate seat 2026",
+            resolution_date=date(2026, 11, 3),
+            enable_bias_correction=True,
+            enable_spatial_arb=True,
+            min_liquidity_usd=5000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Pennsylvania Senate 2026 - Democrat",
+            category=MarketCategory.POLITICS_US,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="SENATEPA-26-D",  # Placeholder
+            description="Democrat wins Pennsylvania Senate seat 2026",
+            resolution_date=date(2026, 11, 3),
+            enable_bias_correction=True,
+            enable_spatial_arb=True,
+            min_liquidity_usd=5000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Georgia Senate 2026 - Democrat",
+            category=MarketCategory.POLITICS_US,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="SENATEGA-26-D",  # Placeholder
+            description="Democrat wins Georgia Senate seat 2026",
+            resolution_date=date(2026, 11, 3),
+            enable_bias_correction=True,
+            enable_spatial_arb=True,
+            min_liquidity_usd=5000.0
+        ))
+
+        # Key House Races - Swing districts
 
         self.markets.append(MarketDefinition(
             name="House VA-7 Democrat",
             category=MarketCategory.POLITICS_US,
             market_type=MarketType.BINARY,
             kalshi_ticker="HOUSEVA7-26-D",
-            description="House Virginia 7th District Dem (Volume: 1,238)",
+            description="House Virginia 7th District Democrat wins 2026",
+            resolution_date=date(2026, 11, 3),
             enable_bias_correction=True,
             enable_spatial_arb=True,
             min_liquidity_usd=1000.0
         ))
 
-        # ====================================================================
-        # ECONOMICS - REAL MARKETS
-        # ====================================================================
-
         self.markets.append(MarketDefinition(
-            name="Texas Gas Price >= $3",
-            category=MarketCategory.ECONOMICS,
+            name="House CA-22 Democrat",
+            category=MarketCategory.POLITICS_US,
             market_type=MarketType.BINARY,
-            kalshi_ticker="KXAAAGASMAXTX-25DEC31-3",
-            description="Texas Gas Price >= $3 (Volume: 33,977)",
-            enable_spatial_arb=True,
-            min_liquidity_usd=10000.0
-        ))
-
-        self.markets.append(MarketDefinition(
-            name="Real Wage Growth Above 0%",
-            category=MarketCategory.ECONOMICS,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="KXREALWAGES-25",
-            description="Real Wage Growth Above 0% in 2025 (Volume: 22,171)",
-            enable_spatial_arb=True,
-            min_liquidity_usd=10000.0
-        ))
-
-        # ====================================================================
-        # MORE CRYPTO MARKETS
-        # ====================================================================
-
-        self.markets.append(MarketDefinition(
-            name="Ethereum >= $5000 Dec 2025",
-            category=MarketCategory.FINANCE,
-            market_type=MarketType.BINARY,
-            kalshi_ticker="KXETHMAXM-25DEC01-5000",
-            description="Ethereum >= $5000 Dec 2025 (Volume: 2,265)",
+            kalshi_ticker="HOUSECA22-26-D",  # Placeholder
+            description="House California 22nd District Democrat wins 2026",
+            resolution_date=date(2026, 11, 3),
+            enable_bias_correction=True,
             enable_spatial_arb=True,
             min_liquidity_usd=2000.0
         ))
 
+        # ====================================================================
+        # FEDERAL RESERVE & MONETARY POLICY
+        # Markets driven by Fed watchers, economists - less partisan bias but
+        # still behavioral (overreaction to news, favorite-longshot)
+        # ====================================================================
+
         self.markets.append(MarketDefinition(
-            name="OpenSea Token Launch Jan 2026",
-            category=MarketCategory.FINANCE,
+            name="Fed Rate Dec 2025 - Cut 25bp",
+            category=MarketCategory.ECONOMICS,
             market_type=MarketType.BINARY,
-            kalshi_ticker="KXTOKENLAUNCHOPENSEA-26JAN01",
-            description="OpenSea Token Launch Jan 2026 (Volume: 7,340)",
+            kalshi_ticker="FED-25DEC-B4.25",  # Placeholder
+            description="Fed cuts rates by 25bp in December 2025 FOMC meeting",
+            resolution_date=date(2025, 12, 18),
+            enable_bias_correction=False,  # Less partisan bias
+            enable_spatial_arb=True,
+            enable_rfr_analysis=True,
+            min_liquidity_usd=10000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Fed Rate Mar 2026 - Above 4.0%",
+            category=MarketCategory.ECONOMICS,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="FED-26MAR-T4.00",  # Placeholder
+            description="Fed Funds Rate above 4.0% after March 2026 FOMC",
+            resolution_date=date(2026, 3, 20),
+            enable_bias_correction=False,
+            enable_spatial_arb=True,
+            enable_rfr_analysis=True,
+            min_liquidity_usd=10000.0
+        ))
+
+        # ====================================================================
+        # ECONOMIC INDICATORS
+        # These resolve based on hard data, but markets can misprice due to
+        # recency bias, overreaction to monthly noise, false liquidity
+        # ====================================================================
+
+        self.markets.append(MarketDefinition(
+            name="CPI YoY Dec 2025 - Above 2.5%",
+            category=MarketCategory.ECONOMICS,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="CPIYOY-25DEC-T2.5",  # Placeholder
+            description="CPI Year-over-Year inflation above 2.5% in December 2025",
+            resolution_date=date(2026, 1, 15),  # CPI releases ~mid-month
+            enable_bias_correction=False,
             enable_spatial_arb=True,
             min_liquidity_usd=5000.0
         ))
 
         self.markets.append(MarketDefinition(
-            name="Utah BTC Reserve 2026",
+            name="Unemployment Jan 2026 - Below 4.0%",
+            category=MarketCategory.ECONOMICS,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="UNEMP-26JAN-B4.0",  # Placeholder
+            description="Unemployment rate below 4.0% in January 2026 jobs report",
+            resolution_date=date(2026, 2, 7),  # Jobs report first Friday
+            enable_bias_correction=False,
+            enable_spatial_arb=True,
+            min_liquidity_usd=5000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Real Wage Growth 2025 - Above 0%",
+            category=MarketCategory.ECONOMICS,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXREALWAGES-25",
+            description="Real wage growth positive in 2025 (Verified active)",
+            resolution_date=date(2026, 1, 31),
+            enable_spatial_arb=True,
+            min_liquidity_usd=10000.0
+        ))
+
+        # ====================================================================
+        # POLITICAL EVENTS & GOVERNANCE
+        # High behavioral bias - partisans bet on what they want, not what's likely
+        # Perfect for bias correction and false liquidity bait strategies
+        # ====================================================================
+
+        self.markets.append(MarketDefinition(
+            name="Government Shutdown 2026",
             category=MarketCategory.POLITICS_US,
             market_type=MarketType.BINARY,
-            kalshi_ticker="KXBTCRESERVESTATES-26-UT",
-            description="Utah BTC Reserve 2026 (Volume: 14,723)",
+            kalshi_ticker="SHUTDOWN-26",  # Placeholder
+            description="Federal government shutdown occurs in 2026",
+            resolution_date=date(2026, 12, 31),
+            enable_bias_correction=True,
             enable_spatial_arb=True,
             min_liquidity_usd=5000.0
         ))
 
-        # All markets verified with actual volume data from Kalshi API
-        # Query date: November 17, 2025
+        self.markets.append(MarketDefinition(
+            name="DC Federalization by Jan 2027",
+            category=MarketCategory.POLITICS_US,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="KXFEDDC-27JAN-FEDDC",
+            description="DC Federalization by Jan 2027 (Verified active: Vol 32,835)",
+            resolution_date=date(2027, 1, 1),
+            enable_bias_correction=True,
+            enable_spatial_arb=True,
+            min_liquidity_usd=10000.0
+        ))
+
+        self.markets.append(MarketDefinition(
+            name="Supreme Court Expansion 2026",
+            category=MarketCategory.POLITICS_US,
+            market_type=MarketType.BINARY,
+            kalshi_ticker="SCOTUS-EXPAND-26",  # Placeholder
+            description="Supreme Court expanded beyond 9 justices by end of 2026",
+            resolution_date=date(2026, 12, 31),
+            enable_bias_correction=True,
+            enable_spatial_arb=True,
+            min_liquidity_usd=5000.0
+        ))
+
+        # ====================================================================
+        # NOTES ON MARKET SELECTION
+        # ====================================================================
+        #
+        # WHY THESE MARKETS?
+        # - Behavioral inefficiencies: Partisans bet with hearts not heads
+        # - Our strategies designed for this: Shy Voter, Favorite-Longshot
+        # - Avoid efficient markets: No crypto/stocks (those just track prices)
+        # - High enough volume for meaningful execution
+        # - Clear resolution criteria (official data, election results)
+        #
+        # TO UPDATE TICKERS:
+        # 1. SSH to droplet: ssh root@159.223.201.145
+        # 2. Run: cd /opt/oracle && python3 find_active_markets.py
+        # 3. Replace placeholder tickers with real ones
+        # 4. Update min_liquidity_usd based on actual volumes
+        #
+        # ====================================================================
 
     def get_all_markets(self) -> List[MarketDefinition]:
         """Get all registered markets."""
@@ -256,24 +355,36 @@ class MarketRegistry:
 # Example usage
 if __name__ == "__main__":
     registry = MarketRegistry()
-    
+
     print("=" * 80)
-    print("REAL MARKET REGISTRY")
+    print("POLITICS & ECONOMICS MARKET REGISTRY")
     print("=" * 80)
-    
+    print("\n🎯 Our Edge: Behavioral biases in political prediction markets")
+    print("❌ Avoid: Efficient crypto/stock markets (no behavioral edge)")
+
     all_markets = registry.get_all_markets()
-    print(f"\nTotal Active Markets: {len(all_markets)}")
-    
-    print("\n📊 Markets by Category:")
-    for category in MarketCategory:
+    print(f"\n📊 Total Active Markets: {len(all_markets)}")
+
+    print("\n" + "=" * 80)
+    print("MARKETS BY CATEGORY")
+    print("=" * 80)
+
+    for category in [MarketCategory.POLITICS_US, MarketCategory.ECONOMICS]:
         markets = registry.get_markets_by_category(category)
         if markets:
             print(f"\n{category.value.upper()}: {len(markets)} markets")
             for m in markets:
-                print(f"  - {m.kalshi_ticker}: {m.name}")
-    
-    print("\n🔄 Spatial Arbitrage Enabled: {}".format(
-        len(registry.get_spatial_arb_markets())
-    ))
-    
+                ticker = m.kalshi_ticker or "TBD"
+                print(f"  - {ticker:30} {m.name}")
+
+    print("\n" + "=" * 80)
+    print("STRATEGY ENABLEMENT")
+    print("=" * 80)
+
+    print(f"\n🎯 Bias Correction: {len(registry.get_bias_correction_markets())} markets")
+    print(f"🔄 Spatial Arbitrage: {len(registry.get_spatial_arb_markets())} markets")
+    print(f"📊 Dutch Book: {len(registry.get_dutch_book_markets())} markets")
+
+    print("\n" + "=" * 80)
+    print("✅ Configuration focused on markets where behavioral biases create edge")
     print("=" * 80)
