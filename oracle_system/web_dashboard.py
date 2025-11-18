@@ -27,7 +27,8 @@ def get_db_connection():
 def check_system_running():
     """Check if Oracle is running."""
     try:
-        result = subprocess.run(['pgrep', '-f', 'run_oracle_system'],
+        # Check for any Oracle process (handles all modes: fast, realtime, batch)
+        result = subprocess.run(['pgrep', '-f', 'run_oracle'],
                               capture_output=True, text=True)
         return bool(result.stdout.strip())
     except:
