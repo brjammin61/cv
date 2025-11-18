@@ -46,7 +46,7 @@ cd $INSTALL_DIR/oracle_system
 
 echo -e "${BLUE}[4/8] Installing Python dependencies...${NC}"
 pip3 install --quiet --upgrade pip
-pip3 install --quiet -r requirements.txt
+pip3 install --quiet --ignore-installed blinker -r requirements.txt
 pip3 install --quiet flask
 
 echo -e "${BLUE}[5/8] Creating directories...${NC}"
