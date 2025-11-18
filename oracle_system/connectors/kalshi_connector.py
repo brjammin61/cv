@@ -401,19 +401,26 @@ class KalshiConnector:
             }
 
             url = f"{self.api_base}{path}"
+            logger.info(f"Attempting login to {url}")
             response = requests.post(url, headers=headers, timeout=10)
 
+            logger.info(f"Login response status: {response.status_code}")
             if response.status_code == 200:
                 data = response.json()
                 token = data.get('token')
-                logger.info("✅ Obtained session token for WebSocket")
-                return token
+                if token:
+                    logger.info("✅ Obtained session token for WebSocket")
+                    return token
+                else:
+                    logger.error(f"No token in response: {data}")
+                    return None
             else:
                 logger.error(f"Failed to get session token: {response.status_code}")
+                logger.error(f"Response body: {response.text}")
                 return None
 
         except Exception as e:
-            logger.error(f"Error getting session token: {e}")
+            logger.error(f"Error getting session token: {e}", exc_info=True)
             return None
 
     async def connect_websocket(self):
