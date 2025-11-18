@@ -379,6 +379,43 @@ class KalshiConnector:
 
         return markets
 
+    def _get_session_token(self) -> Optional[str]:
+        """
+        Get session token for WebSocket authentication.
+        Uses REST API login endpoint.
+        """
+        try:
+            import requests
+
+            # Generate signature for login
+            timestamp_ms = int(time.time() * 1000)
+            timestamp_str = str(timestamp_ms)
+            path = '/login'
+            signature = self._generate_signature(timestamp_str, 'POST', path)
+
+            headers = {
+                'KALSHI-ACCESS-KEY': self.api_key,
+                'KALSHI-ACCESS-SIGNATURE': signature,
+                'KALSHI-ACCESS-TIMESTAMP': timestamp_str,
+                'Content-Type': 'application/json'
+            }
+
+            url = f"{self.api_base}{path}"
+            response = requests.post(url, headers=headers, timeout=10)
+
+            if response.status_code == 200:
+                data = response.json()
+                token = data.get('token')
+                logger.info("✅ Obtained session token for WebSocket")
+                return token
+            else:
+                logger.error(f"Failed to get session token: {response.status_code}")
+                return None
+
+        except Exception as e:
+            logger.error(f"Error getting session token: {e}")
+            return None
+
     async def connect_websocket(self):
         """
         Connect to Kalshi WebSocket for real-time market data.
@@ -390,13 +427,27 @@ class KalshiConnector:
         try:
             import websockets
 
+            # Get session token first
+            token = self._get_session_token()
+
+            if not token:
+                logger.error("Cannot connect to WebSocket: No session token")
+                self.ws_connected = False
+                return
+
             # Kalshi WebSocket URL
             if self.use_demo:
                 ws_url = "wss://demo-api.kalshi.co/trade-api/ws/v2"
             else:
                 ws_url = "wss://api.elections.kalshi.com/trade-api/ws/v2"
 
-            self.ws_client = await websockets.connect(ws_url)
+            # Connect with authentication header
+            self.ws_client = await websockets.connect(
+                ws_url,
+                extra_headers={
+                    'Authorization': f'Bearer {token}'
+                }
+            )
             self.ws_connected = True
             logger.info(f"✅ WebSocket connected to Kalshi")
 
