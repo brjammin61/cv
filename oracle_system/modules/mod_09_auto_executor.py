@@ -182,7 +182,10 @@ class AutoExecutor:
         risk_level: RiskLevel
     ) -> float:
         """
-        Calculate optimal position size using Kelly Criterion + risk adjustment.
+        Calculate optimal position size based on edge, conviction, and risk.
+
+        Uses a simplified approach: base size scales with edge and conviction,
+        then adjusted for risk level.
 
         Args:
             signal: Signal dictionary
@@ -191,29 +194,35 @@ class AutoExecutor:
         Returns:
             Position size in USD
         """
-        edge = signal.get('edge_cents', 0) / 100  # Convert to decimal
-        win_rate = 0.65  # Conservative estimate, updated by ML later
+        edge_cents = signal.get('edge_cents', 0)
+        conviction = signal.get('conviction', 'MEDIUM')
 
-        # Kelly Criterion: f = (p * b - q) / b
-        # where p = win_rate, q = 1-p, b = edge
-        if edge <= 0:
+        if edge_cents <= 0:
             return 0.0
 
-        kelly_fraction = (win_rate * edge - (1 - win_rate)) / edge
+        # Base position size: scale with edge
+        # 3¢ edge = $15, 5¢ = $25, 10¢ = $50 (max)
+        # Formula: base = min($15 + (edge - 3) * 3.5, max_position_size)
+        base_size = min(15.0 + (edge_cents - 3.0) * 3.5, self.max_position_size)
 
-        # Apply fractional Kelly (be conservative)
-        fractional_kelly = 0.25  # Quarter Kelly
-        kelly_size = kelly_fraction * fractional_kelly * self.max_total_exposure
+        # Conviction multiplier
+        conviction_multipliers = {
+            "NONE": 0.0,
+            "LOW": 0.5,
+            "MEDIUM": 0.7,
+            "HIGH": 1.0
+        }
+        base_size *= conviction_multipliers.get(conviction, 0.7)
 
         # Adjust for risk level
         risk_multipliers = {
             RiskLevel.SAFE: 1.0,
-            RiskLevel.ELEVATED: 0.7,
-            RiskLevel.HIGH: 0.4,
-            RiskLevel.CRITICAL: 0.1
+            RiskLevel.ELEVATED: 0.8,
+            RiskLevel.HIGH: 0.5,
+            RiskLevel.CRITICAL: 0.0
         }
 
-        adjusted_size = kelly_size * risk_multipliers[risk_level]
+        adjusted_size = base_size * risk_multipliers[risk_level]
 
         # Apply hard limits
         position_size = min(
