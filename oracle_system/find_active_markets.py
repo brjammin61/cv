@@ -85,22 +85,34 @@ for page in range(5):  # Get first 5 pages (500 markets max)
 
 print(f"\n✅ Total markets found: {len(all_markets)}")
 
-# Filter for good trading markets
-print("\n[2] Filtering for HIGH-VOLUME, NEAR-TERM markets...")
+# Filter for good trading markets - POLITICS & ECONOMICS ONLY
+print("\n[2] Filtering for POLITICS & ECONOMICS markets with good liquidity...")
 
 good_markets = []
+politics_economics_markets = []
 now = datetime.now()
 six_months = now + timedelta(days=180)
 
+# Keywords to identify politics/economics markets
+politics_keywords = ['congress', 'senate', 'house', 'election', 'president', 'democrat',
+                     'republican', 'vote', 'poll', 'government', 'shutdown', 'supreme',
+                     'court', 'nominee', 'legislation', 'impeach', 'cabinet']
+economics_keywords = ['fed', 'rate', 'inflation', 'cpi', 'gdp', 'unemployment', 'jobs',
+                      'recession', 'economy', 'wage', 'interest', 'fomc', 'treasury',
+                      'debt', 'deficit', 'market', 'stock', 'dow', 's&p']
+
 for market in all_markets:
     ticker = market.get('ticker', '')
+    title = market.get('title', '').lower()
 
-    # Skip long-term KX markets
-    if ticker.startswith('KX'):
-        continue
+    # Check if it's politics or economics related
+    is_politics = any(keyword in title for keyword in politics_keywords)
+    is_economics = any(keyword in title for keyword in economics_keywords)
+
+    if not (is_politics or is_economics):
+        continue  # Skip non-politics/economics markets
 
     # Get market details
-    title = market.get('title', '')
     volume = market.get('volume', 0)
     open_interest = market.get('open_interest', 0)
     close_time = market.get('close_time', '')
@@ -110,61 +122,72 @@ for market in all_markets:
     # Calculate spread (lower is better)
     spread = yes_ask - yes_bid if yes_ask and yes_bid else 10000
 
-    # Filter criteria
-    if (volume > 100 or open_interest > 50) and spread < 500:  # Decent volume and tight spread
+    # Store all politics/economics markets
+    politics_economics_markets.append({
+        'ticker': ticker,
+        'title': market.get('title', ''),
+        'volume': volume,
+        'open_interest': open_interest,
+        'spread': spread,
+        'close_time': close_time,
+        'yes_bid': yes_bid,
+        'yes_ask': yes_ask,
+        'category': 'politics' if is_politics else 'economics'
+    })
+
+    # Filter for good liquidity (relaxed criteria for politics/economics)
+    if (volume > 50 or open_interest > 25) and spread < 1000:  # More lenient for behavioral markets
         good_markets.append({
             'ticker': ticker,
-            'title': title,
+            'title': market.get('title', ''),
             'volume': volume,
             'open_interest': open_interest,
             'spread': spread,
             'close_time': close_time,
             'yes_bid': yes_bid,
-            'yes_ask': yes_ask
+            'yes_ask': yes_ask,
+            'category': 'politics' if is_politics else 'economics'
         })
 
 # Sort by volume
 good_markets.sort(key=lambda x: x['volume'], reverse=True)
 
-print(f"✅ Found {len(good_markets)} good trading markets")
+print(f"\n✅ Found {len(politics_economics_markets)} total politics/economics markets")
+print(f"✅ Found {len(good_markets)} with good liquidity for trading")
 
 # Display top markets
 print("\n" + "=" * 80)
-print("📊 TOP TRADING MARKETS (by volume)")
+print("📊 TOP POLITICS & ECONOMICS MARKETS (by volume)")
 print("=" * 80)
 
-for i, market in enumerate(good_markets[:20], 1):
+for i, market in enumerate(good_markets[:30], 1):
     ticker = market['ticker']
-    title = market['title'][:55]
+    title = market['title'][:60]
     volume = market['volume']
     spread = market['spread']
     yes_bid = market['yes_bid'] / 100  # Convert cents to probability
     yes_ask = market['yes_ask'] / 100
+    category = market['category'].upper()
 
-    print(f"\n{i}. {ticker}")
+    print(f"\n{i}. [{category}] {ticker}")
     print(f"   {title}")
-    print(f"   Volume: {volume:,} | Spread: {spread} cents | Bid: {yes_bid:.2f}¢ Ask: {yes_ask:.2f}¢")
+    print(f"   Volume: {volume:,} | OI: {market['open_interest']:,} | Spread: {spread} cents | Bid: {yes_bid:.2f}¢ Ask: {yes_ask:.2f}¢")
 
-# Group by category if possible
+# Group by category
 print("\n" + "=" * 80)
-print("📂 MARKETS BY CATEGORY")
+print("📂 BREAKDOWN BY CATEGORY")
 print("=" * 80)
 
-# Try to infer categories from ticker prefixes
-categories = {}
-for market in good_markets[:50]:
-    ticker = market['ticker']
-    # Try to extract prefix (first few letters before numbers/dashes)
-    prefix = ticker.split('-')[0][:5]
+politics_markets = [m for m in good_markets if m['category'] == 'politics']
+economics_markets = [m for m in good_markets if m['category'] == 'economics']
 
-    if prefix not in categories:
-        categories[prefix] = []
-    categories[prefix].append(market)
+print(f"\n🏛️  POLITICS ({len(politics_markets)} markets):")
+for market in politics_markets[:15]:
+    print(f"  {market['ticker']:35} | Vol: {market['volume']:,} | {market['title'][:40]}")
 
-for prefix, markets in sorted(categories.items(), key=lambda x: -len(x[1]))[:10]:
-    print(f"\n{prefix}* markets ({len(markets)} found):")
-    for market in markets[:5]:
-        print(f"  {market['ticker']:35} | Vol: {market['volume']:,}")
+print(f"\n💰 ECONOMICS ({len(economics_markets)} markets):")
+for market in economics_markets[:15]:
+    print(f"  {market['ticker']:35} | Vol: {market['volume']:,} | {market['title'][:40]}")
 
 print("\n" + "=" * 80)
 print("✅ SEARCH COMPLETE")
