@@ -1,0 +1,14 @@
+# Cortex Protocol - Python Dependencies
+# ======================================
+
+# Online Machine Learning (CRITICAL - Must use River, NOT sklearn)
+river>=0.21.0              # Incremental/online learning library
+
+# ZeroMQ Communication
+pyzmq>=25.1.0              # Python bindings for ZeroMQ
+
+# Core
+numpy>=1.24.0              # Numerical computing
+
+# Optional: Logging and monitoring
+# loguru>=0.7.0            # Better logging (optional)
