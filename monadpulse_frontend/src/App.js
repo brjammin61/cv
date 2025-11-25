@@ -133,7 +133,10 @@ export default function App() {
   const [lastUpdated, setLastUpdated] = useState(new Date());
   const [error, setError] = useState(null);
 
-  const API_BASE_URL = 'http://localhost:8000';
+  // Use production IP if not on localhost, otherwise use localhost for development
+  const API_BASE_URL = window.location.hostname === 'localhost'
+    ? 'http://localhost:8000'
+    : `http://${window.location.hostname}:8000`;
 
   useEffect(() => {
     const fetchData = async () => {
