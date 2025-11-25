@@ -193,12 +193,10 @@ async def get_chart_data(db: Session = Depends(get_db)):
         # Query chart data, ordered by timestamp
         chart_data = db.query(ChartDataDB).order_by(ChartDataDB.timestamp).all()
 
+        # Return empty list if no chart data yet (dashboard handles gracefully)
         if not chart_data:
-            logger.warning("No chart data available")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No chart data available. The ingestor may still be initializing."
-            )
+            logger.info("⏳ No chart data available yet - returning empty list")
+            return []
 
         # Convert to response format
         result = []
@@ -245,12 +243,10 @@ async def get_leaderboard(
             .all()
         )
 
+        # Return empty list if no validators yet (dashboard handles gracefully)
         if not validators:
-            logger.warning("No validator data available for leaderboard")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No validator data available. The ingestor may still be initializing."
-            )
+            logger.info("⏳ No validator data available yet - returning empty list")
+            return []
 
         return validators
 
