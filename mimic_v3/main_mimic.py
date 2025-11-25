@@ -46,6 +46,14 @@ from modules.mimic_v3.news_oracle import NewsOracle
 from modules.mimic_v3.maker import PassiveMarketMaker
 from modules.mimic_v3.persistence import MimicDB
 
+# Dashboard imports (optional)
+try:
+    from dashboard import dashboard_state, app as dashboard_app
+    import uvicorn
+    DASHBOARD_AVAILABLE = True
+except ImportError:
+    DASHBOARD_AVAILABLE = False
+
 
 def setup_logging(log_file: str = "logs/mimic_cortex.log") -> logging.Logger:
     """Configure logging for the system"""
@@ -89,7 +97,9 @@ class MimicCortex:
         demo_mode: bool = False,
         paper_trading: bool = True,
         initial_capital: float = 1000.0,
-        db_path: str = "data/mimic_data.db"
+        db_path: str = "data/mimic_data.db",
+        dashboard_port: int = 8080,
+        enable_dashboard: bool = True
     ):
         load_dotenv()
 
@@ -97,6 +107,8 @@ class MimicCortex:
         self.paper_trading = paper_trading
         self.initial_capital = initial_capital
         self.db_path = db_path
+        self.dashboard_port = dashboard_port
+        self.enable_dashboard = enable_dashboard and DASHBOARD_AVAILABLE
         self.logger = setup_logging()
 
         self.logger.info("=" * 60)
@@ -104,6 +116,7 @@ class MimicCortex:
         self.logger.info(f"Mode: {'DEMO' if demo_mode else 'PRODUCTION'}")
         self.logger.info(f"Trading: {'PAPER' if paper_trading else 'LIVE'}")
         self.logger.info(f"Database: {db_path}")
+        self.logger.info(f"Dashboard: {'ENABLED' if self.enable_dashboard else 'DISABLED'}")
         self.logger.info("=" * 60)
 
         # Initialize persistence FIRST
@@ -209,6 +222,18 @@ class MimicCortex:
 
         db_stats = self.db.get_db_stats()
         self.logger.info(f"Database: {db_stats['total_whales']} whales, {db_stats['total_trades']} trades")
+
+        # 8. Connect dashboard to engine components
+        if self.enable_dashboard:
+            dashboard_state.connect_engine(
+                risk_manager=self.risk_manager,
+                scanner=self.scanner,
+                maker=self.maker,
+                brain=self.brain,
+                db=self.db,
+                client=self.client
+            )
+            self.logger.info(f"Dashboard connected - will serve on port {self.dashboard_port}")
 
         self.logger.info("Initialization complete")
 
@@ -519,6 +544,32 @@ class MimicCortex:
             except Exception as e:
                 self.logger.error(f"Status loop error: {e}")
 
+    async def run_dashboard_server(self):
+        """Run the Bloomberg-style dashboard server"""
+        if not self.enable_dashboard:
+            self.logger.info("Dashboard disabled - skipping")
+            return
+
+        self.logger.info(f"DASHBOARD: Starting on http://0.0.0.0:{self.dashboard_port}")
+
+        config = uvicorn.Config(
+            dashboard_app,
+            host="0.0.0.0",
+            port=self.dashboard_port,
+            log_level="warning",
+            access_log=False
+        )
+        server = uvicorn.Server(config)
+
+        try:
+            await server.serve()
+        except asyncio.CancelledError:
+            pass
+        except Exception as e:
+            self.logger.error(f"Dashboard server error: {e}")
+
+        self.logger.info("DASHBOARD: Stopped")
+
     async def run_lifecycle(self):
         """Main entry point - runs all loops concurrently"""
         self.running = True
@@ -536,6 +587,7 @@ class MimicCortex:
                 self.run_maker_loop(),
                 self.run_websocket_loop(),
                 self.run_status_loop(),
+                self.run_dashboard_server(),
                 return_exceptions=True
             )
 
@@ -554,6 +606,8 @@ def main():
     parser.add_argument("--live", action="store_true", help="Enable live trading")
     parser.add_argument("--capital", type=float, default=1000.0, help="Initial capital")
     parser.add_argument("--db", type=str, default="data/mimic_data.db", help="Database path")
+    parser.add_argument("--dashboard-port", type=int, default=8080, help="Dashboard server port")
+    parser.add_argument("--no-dashboard", action="store_true", help="Disable dashboard")
 
     args = parser.parse_args()
 
@@ -561,7 +615,9 @@ def main():
         demo_mode=args.demo,
         paper_trading=not args.live,
         initial_capital=args.capital,
-        db_path=args.db
+        db_path=args.db,
+        dashboard_port=args.dashboard_port,
+        enable_dashboard=not args.no_dashboard
     )
 
     try:
