@@ -143,39 +143,19 @@ MOCK_VALIDATORS = [
 
 def generate_chart_data(days: int = 14) -> List[Dict]:
     """
-    Generate historical MEV chart data.
+    Generate historical MEV chart data from Monad blockchain.
 
-    In production, this will query the Monad blockchain for historical MEV data.
-    For now, we generate realistic-looking mock data.
+    Returns EMPTY list until real historical MEV data APIs are available.
+    NO SIMULATED DATA - Dashboard will show "Coming Soon" state.
 
     Args:
         days: Number of days of historical data to generate
 
     Returns:
-        List of chart data points
+        Empty list (no fake data)
     """
-    chart_data = []
-    base_mev = 50000
-    volatility = 0.15
-
-    today = datetime.utcnow()
-
-    for i in range(days):
-        date = today - timedelta(days=(days - i - 1))
-        date_str = date.strftime("%m/%d")
-
-        # Simulate growing MEV with some volatility
-        growth_factor = 1 + (i / days) * 0.8  # 80% growth over period
-        daily_change = random.uniform(-volatility, volatility)
-        mev_value = base_mev * growth_factor * (1 + daily_change)
-
-        chart_data.append({
-            "timestamp": date,
-            "name": date_str,
-            "mev": round(mev_value, 2)
-        })
-
-    return chart_data
+    logger.info("⏳ Historical chart data: Waiting for Monad MEV APIs (NO SIMULATED DATA)")
+    return []  # Empty - no fake data!
 
 
 def check_monad_connection() -> bool:
