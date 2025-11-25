@@ -8,10 +8,10 @@ import logging
 import os
 from multiprocessing import Process
 
-from .scanner import OmegaScanner
-from .classifier import MEVClassifier
-from .db_utils import init_omega_database, test_omega_connection
-from .api import app
+from scanner import OmegaScanner
+from classifier import MEVClassifier
+from db_utils import init_omega_database, test_omega_connection
+from api import app
 
 # Configure logging
 logging.basicConfig(

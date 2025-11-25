@@ -12,5 +12,5 @@ COPY . .
 # Expose API port
 EXPOSE 8001
 
-# Run Omega Engine
-CMD ["python", "-m", "omega.main"]
+# Run Omega Engine directly
+CMD ["python", "main.py"]
