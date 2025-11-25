@@ -25,7 +25,7 @@ class MEVOpportunity(OmegaBase):
     profit_estimate = Column(Float, default=0.0)
     validator_address = Column(String(42), nullable=False, index=True)
     timestamp = Column(DateTime, nullable=False, default=datetime.utcnow, index=True)
-    metadata = Column(JSON)  # Store additional context (DEXes, tokens, etc.)
+    extra_data = Column(JSON)  # Store additional context (DEXes, tokens, etc.) - renamed from 'metadata' (reserved word)
     
     # Indexes for fast queries
     __table_args__ = (
