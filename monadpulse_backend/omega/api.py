@@ -6,7 +6,7 @@ Gated endpoints requiring subscription/API key
 import secrets
 import logging
 from datetime import datetime
-from typing import Optional
+from typing import Optional, List
 from fastapi import FastAPI, Depends, HTTPException, Security, status
 from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
