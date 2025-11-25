@@ -263,86 +263,69 @@ def fetch_validator_data() -> List[Dict]:
     INTEGRATION STATUS:
     - ✅ Connected to Monad mainnet RPC
     - ✅ Real-time blockchain metrics (blocks, TPS, etc.)
-    - 🔄 Validator-specific data: Using enhanced mock data until Monad validator API is documented
+    - ⏳ Validator-specific data: WAITING for Monad validator API documentation
 
-    As Monad's validator APIs become available, this function will be updated to fetch:
-    - Real validator addresses and performance
-    - Actual MEV data from validators
-    - Real uptime and block production metrics
+    Returns EMPTY list until real validator APIs are available.
+    NO SIMULATED DATA - Dashboard will show "Coming Soon" state.
 
     Returns:
-        List of validator data dictionaries
+        List of validator data dictionaries (empty until real APIs available)
     """
     # Check connection to Monad
     if not check_monad_connection():
-        logger.warning("⚠️  Using mock data - Monad RPC connection failed")
+        logger.warning("⚠️  Monad RPC connection failed")
     else:
-        logger.info("✅ Connected to Monad mainnet - Fetching data...")
+        logger.info("✅ Connected to Monad mainnet")
 
-    # Fetch real blockchain metrics
-    blockchain_metrics = fetch_real_blockchain_metrics()
+    # TODO: When Monad validator API becomes available, implement here:
+    # validators = fetch_real_monad_validators()
+    #
+    # Expected API endpoints:
+    # - GET /validators - list all validators
+    # - GET /validators/{address}/performance - validator metrics
+    # - GET /mev/stats - MEV extraction data
 
-    validators = []
+    logger.info("⏳ Validator data: Waiting for Monad API documentation (NO SIMULATED DATA)")
 
-    # NOTE: Enhanced validator data with real blockchain context
-    # As Monad validator APIs become available, replace this with real API calls
-    for mock_val in MOCK_VALIDATORS:
-        # Add slight random variation to simulate live data
-        mev_variation = random.uniform(-0.05, 0.05)  # ±5% variation
-        uptime_variation = random.uniform(-0.1, 0.1)  # ±0.1% variation
-
-        # Use real block number if available
-        blocks_produced = blockchain_metrics.get("block_number", 0) // len(MOCK_VALIDATORS) if blockchain_metrics.get("connected") else random.randint(1000, 5000)
-
-        validators.append({
-            "name": mock_val["name"],
-            "address": mock_val["address"],
-            "uptime_pct": min(100.0, mock_val["uptime_base"] + uptime_variation),
-            "apy_pct": mock_val["apy"],
-            "mev_efficiency": max(0, mock_val["mev"] * (1 + mev_variation)),
-            "is_omega_partner": mock_val["partner"],
-            "blocks_produced": blocks_produced
-        })
-
-    logger.info(f"📈 Fetched data for {len(validators)} validators (enhanced with real blockchain metrics)")
-    return validators
+    # Return empty list - dashboard will handle gracefully
+    return []
 
 
 def calculate_network_stats(validators: List[Dict], blockchain_metrics: Optional[Dict] = None) -> Dict:
     """
-    Calculate network-wide statistics using real blockchain data.
+    Calculate network-wide statistics using ONLY REAL blockchain data.
 
     Args:
-        validators: List of validator data
+        validators: List of validator data (may be empty)
         blockchain_metrics: Real-time blockchain metrics from Monad
 
     Returns:
-        Dictionary of network statistics
+        Dictionary of network statistics (only real TPS, rest is 0 if validators not available)
     """
+    # Use REAL TPS from Monad blockchain
+    if blockchain_metrics and blockchain_metrics.get("connected") and blockchain_metrics.get("calculated_tps", 0) > 0:
+        network_tps = blockchain_metrics["calculated_tps"]
+        logger.info(f"📊 REAL Monad TPS: {network_tps}")
+    else:
+        network_tps = 0
+        logger.info("📊 TPS: Not available (connection issue)")
+
+    # If no validators, return zeros for validator-dependent metrics
     if not validators:
+        logger.info("⏳ MEV and validator metrics: Awaiting Monad validator API")
         return {
             "total_mev": 0.0,
-            "network_tps": 0,
+            "network_tps": network_tps,
             "avg_mev_efficiency": 0.0,
             "mev_change_pct": 0.0
         }
 
+    # When validators are available, calculate real metrics
     total_mev = sum(v["mev_efficiency"] for v in validators) * 1000
     avg_mev_efficiency = sum(v["mev_efficiency"] for v in validators) / len(validators)
 
-    # Use REAL TPS from Monad blockchain if available
-    if blockchain_metrics and blockchain_metrics.get("connected") and blockchain_metrics.get("calculated_tps", 0) > 0:
-        network_tps = blockchain_metrics["calculated_tps"]
-        logger.info(f"📊 Using REAL Monad TPS: {network_tps}")
-    else:
-        # Fallback to estimated TPS
-        base_tps = 1540
-        tps_variation = random.randint(-50, 100)
-        network_tps = base_tps + tps_variation
-        logger.info(f"📊 Using estimated TPS: {network_tps} (real TPS calculation pending)")
-
-    # Simulate MEV growth (will be replaced with historical comparison later)
-    mev_change_pct = random.uniform(10.0, 20.0)
+    # MEV change will be calculated from historical data once we have it
+    mev_change_pct = 0.0
 
     return {
         "total_mev": total_mev,

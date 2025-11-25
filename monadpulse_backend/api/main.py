@@ -133,38 +133,36 @@ async def get_kpi_stats(db: Session = Depends(get_db)):
     """
     Get Key Performance Indicators for the dashboard.
 
-    Returns:
-        - Total MEV captured (14 days)
-        - MEV change percentage vs previous period
-        - Network TPS (24h average)
-        - Top validator name and whether it's an Omega partner
-        - Average MEV efficiency across all validators
+    Returns REAL data where available, zeros for unavailable metrics.
+    Dashboard will show "Coming Soon" for unavailable data.
     """
     try:
         # Get all validators
         validators = db.query(ValidatorDB).all()
 
-        if not validators:
-            logger.warning("No validator data available for KPI stats")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="No validator data available. The ingestor may still be initializing."
-            )
-
-        # Calculate total MEV (sum of all validator MEV efficiency scores * scaling factor)
-        total_mev = sum(v.mev_efficiency for v in validators) * 1000
-
-        # Get top validator
-        top_validator = max(validators, key=lambda v: v.mev_efficiency)
-
-        # Calculate average MEV efficiency
-        avg_mev_efficiency = sum(v.mev_efficiency for v in validators) / len(validators)
-
-        # Get latest network stats for additional data
+        # Get latest network stats (contains REAL TPS from Monad blockchain)
         latest_stats = db.query(NetworkStatsDB).order_by(desc(NetworkStatsDB.timestamp)).first()
 
-        mev_change_pct = latest_stats.mev_change_pct if latest_stats else 15.2
-        network_tps = latest_stats.network_tps if latest_stats else 1540
+        # REAL DATA: Network TPS from Monad blockchain
+        network_tps = latest_stats.network_tps if latest_stats else 0
+
+        # If no validators yet, return zeros (dashboard will show "Coming Soon")
+        if not validators:
+            logger.info("⏳ Validator data not available yet - returning zeros")
+            return KPIStats(
+                total_mev=0.0,
+                mev_change_pct=0.0,
+                network_tps=network_tps,  # This is REAL
+                top_validator="",
+                top_validator_is_partner=False,
+                avg_mev_efficiency=0.0
+            )
+
+        # When validators are available, calculate real metrics
+        total_mev = sum(v.mev_efficiency for v in validators) * 1000
+        top_validator = max(validators, key=lambda v: v.mev_efficiency)
+        avg_mev_efficiency = sum(v.mev_efficiency for v in validators) / len(validators)
+        mev_change_pct = latest_stats.mev_change_pct if latest_stats else 0.0
 
         return KPIStats(
             total_mev=total_mev,
@@ -175,8 +173,6 @@ async def get_kpi_stats(db: Session = Depends(get_db)):
             avg_mev_efficiency=avg_mev_efficiency
         )
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error calculating KPI stats: {e}")
         raise HTTPException(
