@@ -1,0 +1,54 @@
+# MIMIC V3.1 systemd Service File
+# Copy to: /etc/systemd/system/mimic.service
+#
+# Commands:
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable mimic
+#   sudo systemctl start mimic
+#   sudo systemctl status mimic
+#   journalctl -u mimic -f
+
+[Unit]
+Description=MIMIC V3.1 Trading Cortex
+Documentation=https://github.com/yourusername/mimic-v3
+After=network.target network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+Group=root
+
+# Working directory (adjust path as needed)
+WorkingDirectory=/root/mimic_v3
+
+# Python virtual environment
+Environment="PATH=/root/mimic_v3/venv/bin:/usr/local/bin:/usr/bin"
+Environment="PYTHONUNBUFFERED=1"
+
+# Main command
+ExecStart=/root/mimic_v3/venv/bin/python3 main_mimic.py
+
+# Restart policy
+Restart=always
+RestartSec=10
+StartLimitInterval=200
+StartLimitBurst=5
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mimic_cortex
+
+# Security hardening (optional)
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/root/mimic_v3/logs /root/mimic_v3/models
+
+# Resource limits (optional)
+MemoryMax=512M
+CPUQuota=50%
+
+[Install]
+WantedBy=multi-user.target
