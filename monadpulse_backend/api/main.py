@@ -58,10 +58,10 @@ app.add_middleware(
     allow_origins=[
         "http://localhost:3000",  # React development
         "http://localhost:5173",  # Vite development
-        "https://monadpulse.io",  # Production domain (update this)
-        "*"  # Allow all for development (remove in production)
+        "http://143.110.144.231",  # Production VPS
+        "https://monadpulse.io",  # Production domain (future)
     ],
-    allow_credentials=True,
+    allow_credentials=False,  # Disable credentials to allow broader access
     allow_methods=["*"],
     allow_headers=["*"],
 )
