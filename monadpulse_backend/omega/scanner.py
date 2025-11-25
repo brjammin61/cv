@@ -11,8 +11,8 @@ from datetime import datetime
 from web3 import Web3
 from web3.types import BlockData, TxData
 
-from .models import MEVOpportunity, BlockData as BlockDataModel
-from .db_utils import omega_db_session
+from models import MEVOpportunity, BlockData as BlockDataModel
+from db_utils import omega_db_session
 
 logger = logging.getLogger(__name__)
 

@@ -11,7 +11,7 @@ from sqlalchemy.exc import OperationalError
 from contextlib import contextmanager
 import time
 
-from .models import OmegaBase
+from models import OmegaBase
 
 logger = logging.getLogger(__name__)
 

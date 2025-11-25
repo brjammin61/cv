@@ -9,8 +9,8 @@ from typing import List, Dict, Optional
 from datetime import datetime, timedelta
 from sqlalchemy import func, and_
 
-from .models import MEVOpportunity, ValidatorMEVScore, BlockData
-from .db_utils import omega_db_session
+from models import MEVOpportunity, ValidatorMEVScore, BlockData
+from db_utils import omega_db_session
 
 logger = logging.getLogger(__name__)
 

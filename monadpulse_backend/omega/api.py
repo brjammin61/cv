@@ -12,9 +12,9 @@ from fastapi.security import APIKeyHeader
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from .classifier import MEVClassifier
-from .models import OmegaSubscriber, APIUsage
-from .db_utils import omega_db_session
+from classifier import MEVClassifier
+from models import OmegaSubscriber, APIUsage
+from db_utils import omega_db_session
 
 logger = logging.getLogger(__name__)
 
