@@ -1,29 +1,28 @@
 #!/usr/bin/env python3
 """
-MIMIC V3.1 - Central Cortex
-The Main Async Orchestrator
+MIMIC V3.1 HARDENED - Central Cortex
+The Main Async Orchestrator with Persistence
 
 Architecture:
 ┌─────────────────────────────────────────────────────────────┐
 │                     MIMIC CORTEX                            │
-├─────────────┬─────────────┬─────────────┬─────────────────── │
-│   Scanner   │    Brain    │   Oracle    │   Risk Engine     │
-│  (Whales)   │  (ML/River) │ (Sentiment) │ (Kelly + DDC)     │
-├─────────────┴─────────────┴─────────────┴───────────────────┤
+├─────────────────────────────────────────────────────────────┤
+│                      PERSISTENCE (SQLite)                   │
+├─────────────┬─────────────┬─────────────┬──────────────────┤
+│   Scanner   │    Brain    │   Oracle    │   Risk Engine    │
+│  (Whales)   │  (ML/River) │ (Sentiment) │ (Kelly + DDC)    │
+├─────────────┴─────────────┴─────────────┴──────────────────┤
 │                    Market Maker (LIP)                       │
 ├─────────────────────────────────────────────────────────────┤
 │                   Kalshi Client (REST + WS)                 │
 └─────────────────────────────────────────────────────────────┘
 
-Flow:
-1. Scanner detects whale activity → Signal
-2. Oracle validates with news sentiment
-3. Brain predicts win probability
-4. Risk Engine calculates size
-5. Execute trade or reject
-
-Parallel:
-- Maker runs LIP farming when not taking whale signals
+HARDENED Features:
+- SQLite persistence for Shadow IDs and trades
+- State recovery after crash/restart
+- Position tracking survives reboots
+- Asymptotic Kelly with variance adjustment
+- LIP optimization and inventory skew
 """
 
 import os
@@ -31,6 +30,7 @@ import sys
 import asyncio
 import signal
 import logging
+import uuid
 from datetime import datetime
 from typing import Optional
 from dotenv import load_dotenv
@@ -44,29 +44,26 @@ from modules.mimic_v3.brain import MimicBrain
 from modules.mimic_v3.risk_engine import InstitutionalRiskManager
 from modules.mimic_v3.news_oracle import NewsOracle
 from modules.mimic_v3.maker import PassiveMarketMaker
+from modules.mimic_v3.persistence import MimicDB
 
 
 def setup_logging(log_file: str = "logs/mimic_cortex.log") -> logging.Logger:
     """Configure logging for the system"""
     os.makedirs(os.path.dirname(log_file), exist_ok=True)
 
-    # Create formatter
     formatter = logging.Formatter(
         '%(asctime)s | %(levelname)-8s | %(name)-15s | %(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
 
-    # File handler
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
     file_handler.setLevel(logging.DEBUG)
 
-    # Console handler with colors
     console_handler = logging.StreamHandler()
     console_handler.setFormatter(formatter)
     console_handler.setLevel(logging.INFO)
 
-    # Root logger
     root_logger = logging.getLogger()
     root_logger.setLevel(logging.DEBUG)
     root_logger.addHandler(file_handler)
@@ -77,57 +74,48 @@ def setup_logging(log_file: str = "logs/mimic_cortex.log") -> logging.Logger:
 
 class MimicCortex:
     """
-    Central orchestrator for MIMIC V3.1.
+    HARDENED Central Orchestrator for MIMIC V3.1.
 
-    Manages:
+    Features:
     - Dual-loop architecture (Taker + Maker)
+    - SQLite persistence layer
+    - State recovery after restart
     - Signal processing pipeline
-    - Risk management
-    - Graceful shutdown
+    - Graceful shutdown with state save
     """
 
     def __init__(
         self,
         demo_mode: bool = False,
         paper_trading: bool = True,
-        initial_capital: float = 1000.0
+        initial_capital: float = 1000.0,
+        db_path: str = "data/mimic_data.db"
     ):
         load_dotenv()
 
         self.demo_mode = demo_mode
         self.paper_trading = paper_trading
+        self.initial_capital = initial_capital
+        self.db_path = db_path
         self.logger = setup_logging()
 
         self.logger.info("=" * 60)
-        self.logger.info("MIMIC V3.1 CORTEX INITIALIZING")
+        self.logger.info("MIMIC V3.1 HARDENED - CORTEX INITIALIZING")
         self.logger.info(f"Mode: {'DEMO' if demo_mode else 'PRODUCTION'}")
         self.logger.info(f"Trading: {'PAPER' if paper_trading else 'LIVE'}")
+        self.logger.info(f"Database: {db_path}")
         self.logger.info("=" * 60)
 
-        # Initialize components
+        # Initialize persistence FIRST
+        self.db: Optional[MimicDB] = None
+
+        # Initialize components (will be wired up in initialize())
         self.client: Optional[KalshiClient] = None
-        self.risk_manager = InstitutionalRiskManager(
-            capital=initial_capital,
-            max_daily_loss=50.0,
-            max_weekly_loss=150.0,
-            kelly_fraction=0.25,
-            logger=logging.getLogger("RISK")
-        )
-        self.brain = MimicBrain(
-            model_path="models/brain_model.pkl",
-            logger=logging.getLogger("BRAIN")
-        )
-        self.scanner = ShadowScanner(
-            volume_threshold=500.0,
-            logger=logging.getLogger("SCANNER")
-        )
-        self.oracle = NewsOracle(
-            mock_mode=demo_mode,  # Use mock in demo mode
-            logger=logging.getLogger("ORACLE")
-        )
-        self.maker = PassiveMarketMaker(
-            logger=logging.getLogger("MAKER")
-        )
+        self.risk_manager: Optional[InstitutionalRiskManager] = None
+        self.brain: Optional[MimicBrain] = None
+        self.scanner: Optional[ShadowScanner] = None
+        self.oracle: Optional[NewsOracle] = None
+        self.maker: Optional[PassiveMarketMaker] = None
 
         # State
         self.running = False
@@ -143,15 +131,62 @@ class MimicCortex:
         }
 
     async def initialize(self):
-        """Initialize all components and connections"""
+        """Initialize all components with persistence"""
         self.logger.info("Initializing components...")
 
-        # Create Kalshi client
+        # Create directories
+        os.makedirs("data", exist_ok=True)
+        os.makedirs("logs", exist_ok=True)
+        os.makedirs("models", exist_ok=True)
+
+        # 1. Initialize persistence layer
+        self.db = MimicDB(
+            db_path=self.db_path,
+            logger=logging.getLogger("DB")
+        )
+        self.logger.info(f"Database initialized: {self.db.get_db_stats()}")
+
+        # 2. Initialize Risk Manager with persistence
+        self.risk_manager = InstitutionalRiskManager(
+            capital=self.initial_capital,
+            max_daily_loss=50.0,
+            max_weekly_loss=150.0,
+            kelly_fraction=0.25,
+            db=self.db,
+            logger=logging.getLogger("RISK")
+        )
+
+        # 3. Initialize Brain
+        self.brain = MimicBrain(
+            model_path="models/brain_model.pkl",
+            logger=logging.getLogger("BRAIN")
+        )
+
+        # 4. Initialize Scanner with persistence
+        self.scanner = ShadowScanner(
+            db=self.db,
+            volume_threshold=500.0,
+            logger=logging.getLogger("SCANNER")
+        )
+
+        # 5. Initialize Oracle
+        self.oracle = NewsOracle(
+            mock_mode=self.demo_mode,
+            logger=logging.getLogger("ORACLE")
+        )
+
+        # 6. Initialize Maker with persistence
+        self.maker = PassiveMarketMaker(
+            db=self.db,
+            logger=logging.getLogger("MAKER")
+        )
+
+        # 7. Create Kalshi client if credentials available
         api_key = os.getenv("KALSHI_API_KEY")
         api_secret = os.getenv("KALSHI_API_SECRET")
 
         if not api_key or not api_secret:
-            self.logger.warning("No Kalshi API credentials found - running in simulation mode")
+            self.logger.warning("No Kalshi API credentials - running in simulation mode")
             self.paper_trading = True
         else:
             self.client = KalshiClient(
@@ -162,21 +197,23 @@ class MimicCortex:
             )
             await self.client.connect()
 
-            # Set up scanner with client
+            # Wire up client to components
             self.scanner.client = self.client
             self.maker.client = self.client
+            self.scanner.setup_websocket_handlers(self.client)
 
-            # Set up WebSocket handlers
-            if self.client:
-                self.scanner.setup_websocket_handlers(self.client)
+        # Log recovered state
+        open_positions = self.db.get_open_positions()
+        if open_positions:
+            self.logger.info(f"Recovered {len(open_positions)} open positions")
 
-        # Create model directory
-        os.makedirs("models", exist_ok=True)
+        db_stats = self.db.get_db_stats()
+        self.logger.info(f"Database: {db_stats['total_whales']} whales, {db_stats['total_trades']} trades")
 
         self.logger.info("Initialization complete")
 
     async def shutdown(self):
-        """Graceful shutdown"""
+        """Graceful shutdown with state persistence"""
         self.logger.info("Initiating shutdown...")
         self.running = False
         self.shutdown_event.set()
@@ -184,6 +221,19 @@ class MimicCortex:
         # Cancel all maker quotes
         if self.maker:
             await self.maker.cancel_all_quotes()
+
+        # Save daily snapshot
+        if self.db and self.risk_manager:
+            status = self.risk_manager.get_status()
+            self.db.save_daily_snapshot(
+                starting_capital=self.initial_capital,
+                ending_capital=status['capital'],
+                daily_pnl=status['daily_pnl'],
+                trades_taken=status['daily_trades'],
+                wins=status['stats']['winning_trades'],
+                losses=status['stats']['losing_trades'],
+                max_drawdown=status['stats']['max_drawdown_pct']
+            )
 
         # Close connections
         if self.client:
@@ -196,23 +246,25 @@ class MimicCortex:
         if self.brain:
             self.brain._save_model()
 
+        # Close database
+        if self.db:
+            self.db.close()
+
         self.logger.info("Shutdown complete")
 
     async def handle_whale_signal(self, signal):
         """
         Process a whale signal through the full pipeline.
 
-        Pipeline:
-        1. Fast Lane: Resolution Arb (skip Oracle)
-        2. Slow Lane: Informational (Oracle validation)
-        3. Brain prediction
-        4. Risk sizing
-        5. Execution
+        HARDENED: Logs all trades to database.
         """
         self.stats["signals_processed"] += 1
 
         ticker = signal.ticker
-        self.logger.info(f"WHALE SIGNAL: {signal.shadow_id} | {ticker} | {signal.strategy_type.value}")
+        self.logger.info(
+            f"WHALE SIGNAL: {signal.shadow_id} | {ticker} | "
+            f"{signal.strategy_type.value} | Conf: {signal.confidence:.0%}"
+        )
 
         # 1. ORACLE CHECK (Slow Lane only)
         sentiment_score = 0.0
@@ -220,30 +272,31 @@ class MimicCortex:
             try:
                 oracle_result = await self.oracle.get_sentiment_snapshot(signal.raw_market_data)
                 sentiment_score = oracle_result.score
-                self.logger.info(f"  -> Oracle sentiment: {sentiment_score:.2f} ({oracle_result.summary[:50]})")
+                self.logger.info(f"  -> Oracle: {sentiment_score:+.2f} | {oracle_result.summary[:50]}")
             except Exception as e:
                 self.logger.warning(f"  -> Oracle error: {e}")
 
         # 2. FEATURE ENGINEERING & PREDICTION
         features = self.brain.extract_features(signal, sentiment_score)
         win_prob = self.brain.predict(features)
-        self.logger.info(f"  -> Brain prediction: {win_prob:.1%} win probability")
+        self.logger.info(f"  -> Brain: {win_prob:.1%} win probability")
 
         # 3. RISK ENGINE SIZING
-        # Calculate payout ratio based on price
-        # For binary at price P, payout_ratio = (1-P)/P for YES side
         price = signal.price
         if signal.side == "yes":
             payout_ratio = (1 - price) / price if price > 0 else 1.0
         else:
             payout_ratio = price / (1 - price) if price < 1 else 1.0
 
+        # Get whale trade count for estimation samples
+        whale_stats = self.brain.whale_stats.get(signal.shadow_id, {})
+        estimation_samples = whale_stats.get("wins", 0) + whale_stats.get("losses", 0) + 1
+
         size, reason = self.risk_manager.calculate_position_size(
             win_prob=win_prob,
             payout_ratio=payout_ratio,
             conviction=signal.confidence,
-            estimation_samples=self.brain.whale_stats[signal.shadow_id].get("wins", 0) +
-                              self.brain.whale_stats[signal.shadow_id].get("losses", 0) + 1,
+            estimation_samples=estimation_samples,
             ticker=ticker,
             event_ticker=signal.event_ticker
         )
@@ -260,21 +313,24 @@ class MimicCortex:
 
     async def execute_trade(self, signal, size: float, features: dict, win_prob: float):
         """
-        Execute a trade (paper or live).
+        Execute a trade with full persistence.
         """
         ticker = signal.ticker
         side = OrderSide.YES if signal.side == "yes" else OrderSide.NO
         price_cents = int(signal.price * 100)
         contracts = max(1, int(size / signal.price))
 
+        # Generate trade ID
+        trade_id = f"MIMIC_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}_{uuid.uuid4().hex[:8]}"
+
         self.logger.info(
             f"  -> EXECUTING: {side.value.upper()} {ticker} | "
-            f"{contracts} contracts @ {price_cents}c | ${size:.2f}"
+            f"{contracts} contracts @ {price_cents}c | ${size:.2f} | ID: {trade_id}"
         )
 
         if self.paper_trading or not self.client:
             # Paper trading simulation
-            await self._simulate_trade(signal, size, features)
+            await self._simulate_trade(trade_id, signal, size, features)
         else:
             # Live execution
             try:
@@ -289,83 +345,97 @@ class MimicCortex:
                 order_id = order_response.get("order", {}).get("order_id")
                 self.logger.info(f"  -> Order placed: {order_id}")
 
-                # Track position
+                # Track position with persistence
                 self.risk_manager.open_position(
+                    trade_id=trade_id,
                     ticker=ticker,
                     event_ticker=signal.event_ticker,
                     side=signal.side,
                     price=signal.price,
                     size=size,
-                    contracts=contracts
+                    contracts=contracts,
+                    shadow_id=signal.shadow_id,
+                    strategy_type=signal.strategy_type.value,
+                    win_prob=win_prob
                 )
 
             except Exception as e:
                 self.logger.error(f"  -> Execution error: {e}")
+                return
 
         self.stats["trades_executed"] += 1
 
-    async def _simulate_trade(self, signal, size: float, features: dict):
+    async def _simulate_trade(self, trade_id: str, signal, size: float, features: dict):
         """
         Simulate trade for paper trading mode.
-        Uses a simple probabilistic model based on the signal quality.
         """
         import random
 
-        # Wait a bit to simulate settlement
+        # Open position in risk manager (persisted)
+        self.risk_manager.open_position(
+            trade_id=trade_id,
+            ticker=signal.ticker,
+            event_ticker=signal.event_ticker,
+            side=signal.side,
+            price=signal.price,
+            size=size,
+            contracts=int(size / signal.price),
+            shadow_id=signal.shadow_id,
+            strategy_type=signal.strategy_type.value,
+            win_prob=self.brain.predict(features)
+        )
+
+        # Simulate settlement delay
         await asyncio.sleep(0.5)
 
-        # Simulate outcome based on confidence and strategy
-        base_win_rate = 0.5
-
-        # Arbitrage signals have higher base win rate
-        if signal.strategy_type == StrategyType.ARBITRAGE:
-            base_win_rate = 0.70
-
-        # Adjust by confidence
-        adjusted_rate = base_win_rate + (signal.confidence - 0.5) * 0.3
-
+        # Simulate outcome
+        base_win_rate = 0.55 if signal.strategy_type == StrategyType.ARBITRAGE else 0.50
+        adjusted_rate = base_win_rate + (signal.confidence - 0.5) * 0.2
         is_win = random.random() < adjusted_rate
 
-        # Calculate P&L
-        if is_win:
-            # Win pays out based on price
-            pnl = size * ((1 - signal.price) / signal.price) * 0.9  # 10% fee approximation
-        else:
-            pnl = -size
+        # Settlement price
+        exit_price = 1.0 if is_win else 0.0
+        if signal.side == "no":
+            exit_price = 1.0 - exit_price
 
-        # Update systems
-        self.risk_manager.update_equity(pnl)
-        self.brain.learn(features, is_win, pnl)
-        self.scanner.update_whale_outcome(signal.shadow_id, is_win, pnl)
+        # Close position (calculates PnL, persists)
+        pnl = self.risk_manager.close_position(signal.ticker, exit_price)
 
-        status = "WIN" if is_win else "LOSS"
-        self.logger.info(f"  -> SETTLEMENT: {status} | PnL: ${pnl:.2f}")
+        if pnl is not None:
+            # Update brain
+            self.brain.learn(features, is_win, pnl)
+
+            # Update scanner
+            self.scanner.update_whale_outcome(
+                signal.shadow_id,
+                is_win,
+                pnl,
+                signal.strategy_type.value
+            )
+
+            status = "WIN" if is_win else "LOSS"
+            self.logger.info(f"  -> SETTLEMENT: {status} | PnL: ${pnl:+.2f}")
 
     async def run_taker_loop(self):
-        """
-        Main taker loop - processes whale signals.
-        """
-        self.logger.info("TAKER LOOP: Starting whale detection")
+        """Main taker loop - processes whale signals"""
+        self.logger.info("TAKER LOOP: Starting")
 
         while self.running:
             try:
-                # Check if trading is allowed
                 can_trade, reason = self.risk_manager.can_trade()
                 if not can_trade:
                     self.logger.warning(f"Trading paused: {reason}")
-                    await asyncio.sleep(60)  # Wait before checking again
+                    await asyncio.sleep(60)
                     continue
 
-                # Poll for signals
                 signal = await self.scanner.poll_market_stream()
 
                 if signal:
-                    # Pause maker while processing signal
                     self.maker_active = False
                     await self.handle_whale_signal(signal)
                     self.maker_active = True
 
-                await asyncio.sleep(0.5)  # 500ms polling interval
+                await asyncio.sleep(0.5)
 
             except asyncio.CancelledError:
                 break
@@ -376,10 +446,8 @@ class MimicCortex:
         self.logger.info("TAKER LOOP: Stopped")
 
     async def run_maker_loop(self):
-        """
-        Main maker loop - runs LIP farming.
-        """
-        self.logger.info("MAKER LOOP: Starting LIP farming")
+        """Main maker loop - runs LIP farming"""
+        self.logger.info("MAKER LOOP: Starting")
 
         if self.client:
             await self.maker.start()
@@ -390,7 +458,7 @@ class MimicCortex:
                     status = await self.maker.run_lip_cycle()
                     self.logger.debug(f"Maker cycle: {status}")
 
-                await asyncio.sleep(1)  # 1 second cycle
+                await asyncio.sleep(1)
 
             except asyncio.CancelledError:
                 break
@@ -402,23 +470,18 @@ class MimicCortex:
         self.logger.info("MAKER LOOP: Stopped")
 
     async def run_websocket_loop(self):
-        """
-        WebSocket listener for real-time data.
-        """
+        """WebSocket listener for real-time data"""
         if not self.client:
             self.logger.info("No client - skipping WebSocket loop")
             return
 
-        self.logger.info("WEBSOCKET: Starting listener")
+        self.logger.info("WEBSOCKET: Starting")
 
         try:
-            # Subscribe to relevant channels
             await self.client.subscribe(
                 channels=["trade", "orderbook_delta", "fill"],
-                tickers=[]  # All markets
+                tickers=[]
             )
-
-            # This blocks until connection closes
             await self.client.start_websocket()
 
         except asyncio.CancelledError:
@@ -429,26 +492,27 @@ class MimicCortex:
         self.logger.info("WEBSOCKET: Stopped")
 
     async def run_status_loop(self):
-        """
-        Periodic status reporting.
-        """
+        """Periodic status reporting"""
         while self.running:
             try:
                 await asyncio.sleep(300)  # Every 5 minutes
 
-                # Log status
                 risk_status = self.risk_manager.get_status()
                 brain_metrics = self.brain.get_metrics()
+                scanner_stats = self.scanner.get_stats()
+                db_stats = self.db.get_db_stats()
 
-                self.logger.info("=" * 40)
+                self.logger.info("=" * 50)
                 self.logger.info("STATUS REPORT")
-                self.logger.info(f"  Capital: ${risk_status['capital']:.2f}")
-                self.logger.info(f"  Drawdown: {risk_status['drawdown']:.1f}%")
-                self.logger.info(f"  State: {risk_status['state']}")
+                self.logger.info(f"  Capital: ${risk_status['capital']:.2f} ({risk_status['state']})")
+                self.logger.info(f"  Drawdown: {risk_status['drawdown_pct']:.1f}%")
+                self.logger.info(f"  Daily PnL: ${risk_status['daily_pnl']:+.2f}")
                 self.logger.info(f"  Signals: {self.stats['signals_processed']}")
                 self.logger.info(f"  Trades: {self.stats['trades_executed']}")
-                self.logger.info(f"  Brain Accuracy: {brain_metrics.get('accuracy', 0):.2%}")
-                self.logger.info("=" * 40)
+                self.logger.info(f"  Brain Accuracy: {brain_metrics.get('accuracy', 0):.1%}")
+                self.logger.info(f"  Whales Tracked: {scanner_stats['unique_whales']}")
+                self.logger.info(f"  DB: {db_stats['total_trades']} trades, {db_stats['total_whales']} whales")
+                self.logger.info("=" * 50)
 
             except asyncio.CancelledError:
                 break
@@ -456,22 +520,17 @@ class MimicCortex:
                 self.logger.error(f"Status loop error: {e}")
 
     async def run_lifecycle(self):
-        """
-        Main entry point - runs all loops concurrently.
-        """
+        """Main entry point - runs all loops concurrently"""
         self.running = True
         self.stats["start_time"] = datetime.utcnow()
 
-        # Set up signal handlers
         loop = asyncio.get_event_loop()
         for sig in (signal.SIGINT, signal.SIGTERM):
             loop.add_signal_handler(sig, lambda: asyncio.create_task(self.shutdown()))
 
         try:
-            # Initialize
             await self.initialize()
 
-            # Run all loops concurrently
             await asyncio.gather(
                 self.run_taker_loop(),
                 self.run_maker_loop(),
@@ -486,23 +545,23 @@ class MimicCortex:
             await self.shutdown()
 
 
-# ==================== ENTRY POINT ====================
-
 def main():
     """Main entry point"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="MIMIC V3.1 Trading Cortex")
+    parser = argparse.ArgumentParser(description="MIMIC V3.1 HARDENED Trading Cortex")
     parser.add_argument("--demo", action="store_true", help="Use demo API endpoints")
-    parser.add_argument("--live", action="store_true", help="Enable live trading (not paper)")
+    parser.add_argument("--live", action="store_true", help="Enable live trading")
     parser.add_argument("--capital", type=float, default=1000.0, help="Initial capital")
+    parser.add_argument("--db", type=str, default="data/mimic_data.db", help="Database path")
 
     args = parser.parse_args()
 
     cortex = MimicCortex(
         demo_mode=args.demo,
         paper_trading=not args.live,
-        initial_capital=args.capital
+        initial_capital=args.capital,
+        db_path=args.db
     )
 
     try:
