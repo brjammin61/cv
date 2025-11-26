@@ -198,15 +198,13 @@ class MimicBrain:
             preprocessing.StandardScaler()
         )
 
-        # Categorical features with target encoding
-        cat_pipe = (
-            compose.Select('shadow_id', 'strategy_type') |
-            feature_extraction.TargetEncoder(smoothing=10)
-        )
+        # Note: Categorical features (shadow_id, strategy_type) removed
+        # river 0.23.0 doesn't have TargetEncoder - whale performance
+        # is already captured in numerical features (win_rate, log_pnl, etc.)
 
-        # Combined model with enhanced features
+        # Model with numerical features only
         model = (
-            (num_pipe + cat_pipe) |
+            num_pipe |
             linear_model.LogisticRegression(
                 optimizer=optim.SGD(lr=self.learning_rate),
                 l2=0.01  # Regularization
