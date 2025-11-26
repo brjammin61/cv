@@ -551,18 +551,23 @@ class DashboardState:
         # Portfolio from risk manager
         if self.risk_manager:
             rm = self.risk_manager
+            # Calculate unrealized P&L from Position dataclass objects (not dicts)
+            unrealized = sum(
+                getattr(p, 'unrealized_pnl', 0)
+                for p in rm.open_positions.values()
+            )
             self._portfolio = PortfolioSnapshot(
                 timestamp=now.isoformat(),
                 total_capital=rm.current_capital,
                 available_capital=rm.current_capital - rm.deployed_capital,
                 deployed_capital=rm.deployed_capital,
-                unrealized_pnl=sum(p.get('unrealized_pnl', 0) for p in rm.open_positions.values()),
+                unrealized_pnl=unrealized,
                 realized_pnl_today=rm.realized_pnl_today,
-                total_pnl_today=rm.realized_pnl_today + sum(p.get('unrealized_pnl', 0) for p in rm.open_positions.values()),
+                total_pnl_today=rm.realized_pnl_today + unrealized,
                 pnl_pct_today=((rm.current_capital / rm.initial_capital) - 1) * 100,
                 open_positions=len(rm.open_positions),
-                win_rate_today=rm.win_rate if hasattr(rm, 'win_rate') else 0,
-                trades_today=rm.trades_today if hasattr(rm, 'trades_today') else 0
+                win_rate_today=rm.win_rate,
+                trades_today=rm.trades_today
             )
 
             # Risk metrics

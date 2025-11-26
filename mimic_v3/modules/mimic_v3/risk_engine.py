@@ -580,6 +580,68 @@ class InstitutionalRiskManager:
             return 0.0
         return (self.peak_capital - self.current_capital) / self.peak_capital
 
+    @property
+    def deployed_capital(self) -> float:
+        """Total capital currently deployed in open positions"""
+        return sum(p.size for p in self.positions.values())
+
+    @property
+    def open_positions(self) -> Dict[str, Position]:
+        """Alias for positions dict - used by dashboard API"""
+        return self.positions
+
+    @property
+    def realized_pnl_today(self) -> float:
+        """Alias for daily_pnl - used by dashboard API"""
+        return self.daily_pnl
+
+    @property
+    def win_rate(self) -> float:
+        """Win rate as percentage - used by dashboard API"""
+        return self._get_recent_win_rate() * 100
+
+    @property
+    def trades_today(self) -> int:
+        """Alias for daily_trades - used by dashboard API"""
+        return self.daily_trades
+
+    @property
+    def current_drawdown(self) -> float:
+        """Current drawdown as decimal - used by dashboard API"""
+        return self._get_drawdown_pct()
+
+    @property
+    def max_drawdown(self) -> float:
+        """Max drawdown as decimal - used by dashboard API"""
+        return self.stats.get("max_drawdown_pct", 0.0)
+
+    @property
+    def max_portfolio_exposure(self) -> float:
+        """Max allowed exposure as decimal - used by dashboard API"""
+        return self.max_event_exposure
+
+    @property
+    def ddc_multiplier(self) -> float:
+        """Current DDC multiplier - used by dashboard API"""
+        return self._calculate_ddc_multiplier()
+
+    @property
+    def ddc_status(self) -> str:
+        """Current DDC status string - used by dashboard API"""
+        return self.state.value
+
+    @property
+    def win_streak(self) -> int:
+        """Current win streak - used by dashboard API"""
+        streak = self.stats.get("current_streak", 0)
+        return streak if streak > 0 else 0
+
+    @property
+    def loss_streak(self) -> int:
+        """Current loss streak - used by dashboard API"""
+        streak = self.stats.get("current_streak", 0)
+        return abs(streak) if streak < 0 else 0
+
     def get_status(self) -> Dict:
         """Get comprehensive risk status"""
         return {
