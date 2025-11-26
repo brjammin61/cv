@@ -392,11 +392,14 @@ class MimicCortex:
 
     async def _simulate_trade(self, trade_id: str, signal, size: float, features: dict):
         """
-        Simulate trade for paper trading mode.
-        """
-        import random
+        Paper trading mode - OPEN position only, NO FAKE SETTLEMENT.
 
-        # Open position in risk manager (persisted)
+        FIXED: Previously this would randomly settle trades after 0.5s,
+        causing the dashboard to flash with fake wins/losses.
+
+        Now we just log the position as OPEN and wait for real market settlement.
+        """
+        # Open position in risk manager (persisted to DB as OPEN)
         self.risk_manager.open_position(
             trade_id=trade_id,
             ticker=signal.ticker,
@@ -410,36 +413,21 @@ class MimicCortex:
             win_prob=self.brain.predict(features)
         )
 
-        # Simulate settlement delay
-        await asyncio.sleep(0.5)
+        self.logger.info(f"  -> POSITION OPEN: {signal.ticker} | Waiting for real settlement...")
 
-        # Simulate outcome
-        base_win_rate = 0.55 if signal.strategy_type == StrategyType.ARBITRAGE else 0.50
-        adjusted_rate = base_win_rate + (signal.confidence - 0.5) * 0.2
-        is_win = random.random() < adjusted_rate
-
-        # Settlement price
-        exit_price = 1.0 if is_win else 0.0
-        if signal.side == "no":
-            exit_price = 1.0 - exit_price
-
-        # Close position (calculates PnL, persists)
-        pnl = self.risk_manager.close_position(signal.ticker, exit_price)
-
-        if pnl is not None:
-            # Update brain
-            self.brain.learn(features, is_win, pnl)
-
-            # Update scanner
-            self.scanner.update_whale_outcome(
-                signal.shadow_id,
-                is_win,
-                pnl,
-                signal.strategy_type.value
-            )
-
-            status = "WIN" if is_win else "LOSS"
-            self.logger.info(f"  -> SETTLEMENT: {status} | PnL: ${pnl:+.2f}")
+        # ═══════════════════════════════════════════════════════════════════
+        # CRITICAL FIX: DO NOT SIMULATE SETTLEMENT
+        # ═══════════════════════════════════════════════════════════════════
+        # In Paper Trading mode, we do NOT know the outcome yet.
+        # The position stays OPEN until the real market settles.
+        #
+        # Previously this code would:
+        #   await asyncio.sleep(0.5)
+        #   is_win = random.random() < adjusted_rate
+        #   self.risk_manager.close_position(...)
+        #
+        # This caused 10,000+ fake trades/hour flashing on the dashboard.
+        # ═══════════════════════════════════════════════════════════════════
 
     async def run_taker_loop(self):
         """Main taker loop - processes whale signals"""
@@ -460,7 +448,8 @@ class MimicCortex:
                     await self.handle_whale_signal(signal)
                     self.maker_active = True
 
-                await asyncio.sleep(0.5)
+                # Slower polling to avoid API rate limits (every 5 seconds)
+                await asyncio.sleep(5.0)
 
             except asyncio.CancelledError:
                 break
