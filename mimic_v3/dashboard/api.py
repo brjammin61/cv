@@ -106,6 +106,57 @@ class RiskMetrics:
     var_95: float
     sharpe_ratio: float
 
+
+@dataclass
+class AlphaFeatureSnapshot:
+    """Alpha feature engineering state (F.1-F.8)"""
+    # Informational Edge (Dankoweb3)
+    eis: float              # F.1: Exogenous Info Score
+    ers: float              # F.2: Endogeneity Score
+    news_latency: float     # F.3: News Latency Delta
+
+    # Structural Edge (bl888m_eth)
+    ppd: float              # F.4: Pivot Point Distance
+    sres: float             # F.5: S/R Efficacy Score
+    mub: float              # F.6: Market Unidirectional Bias
+
+    # Risk Context (Gemchange)
+    tii: float              # F.7: Trend Intensity Index
+    rrr: float              # F.8: Risk/Reward Ratio
+
+    # Market regime
+    market_regime: str
+    timestamp: str
+
+
+@dataclass
+class DTFEAnalysis:
+    """Digital Twin Foresight Engine analysis result"""
+    ticker: str
+    title: str
+    p_raw: float            # Raw LLM probability
+    p_calibrated: float     # Calibrated probability
+    tsallis_entropy: float  # F.9: Confidence measure
+    optimal_size: float     # F.10: Kelly position size
+    reasoning_summary: str  # Chain of thought summary
+    key_factors: list       # Driving factors
+    risk_flags: list        # Identified risks
+    is_tradeable: bool      # Passes entropy threshold
+    timestamp: str
+
+
+@dataclass
+class BrainMetrics:
+    """ML model performance metrics"""
+    accuracy: float
+    precision: float
+    recall: float
+    f1: float
+    log_loss: float
+    calibration_ece: float  # Expected Calibration Error
+    total_predictions: int
+    alpha_features_enabled: bool
+
 @dataclass
 class MarketMakerStatus:
     """Market maker state"""
@@ -175,6 +226,11 @@ class DashboardState:
         self._maker_status: Optional[MarketMakerStatus] = None
         self._system_health: Optional[SystemHealth] = None
         self._pnl_history: List[PnLDataPoint] = []
+
+        # NEW: Alpha Features and DTFE data
+        self._alpha_features: Optional[AlphaFeatureSnapshot] = None
+        self._dtfe_analyses: List[DTFEAnalysis] = []
+        self._brain_metrics: Optional[BrainMetrics] = None
 
         # Demo data for standalone testing
         self._demo_mode = True
@@ -394,6 +450,62 @@ class DashboardState:
                 unrealized_pnl=delta if delta < 0 else 0
             ))
 
+        # Alpha Features (F.1-F.8) demo data
+        self._alpha_features = AlphaFeatureSnapshot(
+            eis=0.72,           # F.1: Strong news-driven conviction
+            ers=0.35,           # F.2: Low herd behavior (news-driven)
+            news_latency=0.85,  # F.3: Good timing advantage
+            ppd=0.28,           # F.4: Near S/R level
+            sres=0.81,          # F.5: Strong S/R level
+            mub=0.67,           # F.6: Bullish bias
+            tii=0.73,           # F.7: Trending market
+            rrr=0.68,           # F.8: Good risk/reward
+            market_regime="TRENDING_UP",
+            timestamp=now.isoformat()
+        )
+
+        # DTFE Analysis demo data
+        self._dtfe_analyses = [
+            DTFEAnalysis(
+                ticker="KXFED-25JAN29-RATECUT",
+                title="Fed Rate Cut in January",
+                p_raw=0.72,
+                p_calibrated=0.65,
+                tsallis_entropy=0.23,
+                optimal_size=87.50,
+                reasoning_summary="Strong economic indicators suggest Fed will cut rates. Employment data weakening, inflation cooling.",
+                key_factors=["Cooling inflation", "Weak jobs data", "Market expectations"],
+                risk_flags=["Political uncertainty"],
+                is_tradeable=True,
+                timestamp=(now - timedelta(minutes=15)).isoformat()
+            ),
+            DTFEAnalysis(
+                ticker="KXBTC-25JAN10-T95000",
+                title="Bitcoin above $95,000",
+                p_raw=0.58,
+                p_calibrated=0.52,
+                tsallis_entropy=0.67,
+                optimal_size=0.0,
+                reasoning_summary="High entropy indicates uncertain LLM prediction. Market sentiment mixed with conflicting signals.",
+                key_factors=["ETF inflows", "Regulatory uncertainty"],
+                risk_flags=["High entropy", "Volatile asset"],
+                is_tradeable=False,
+                timestamp=(now - timedelta(minutes=5)).isoformat()
+            )
+        ]
+
+        # Brain metrics demo data
+        self._brain_metrics = BrainMetrics(
+            accuracy=0.684,
+            precision=0.712,
+            recall=0.658,
+            f1=0.684,
+            log_loss=0.542,
+            calibration_ece=0.048,
+            total_predictions=1847,
+            alpha_features_enabled=True
+        )
+
     def connect_engine(self, risk_manager=None, scanner=None, maker=None,
                        brain=None, db=None, client=None):
         """Connect to MIMIC engine components"""
@@ -513,6 +625,10 @@ class DashboardState:
             "maker_status": asdict(self._maker_status) if self._maker_status else None,
             "system_health": asdict(self._system_health) if self._system_health else None,
             "pnl_history": [asdict(p) for p in self._pnl_history],
+            # NEW: Alpha Features and DTFE
+            "alpha_features": asdict(self._alpha_features) if self._alpha_features else None,
+            "dtfe_analyses": [asdict(d) for d in self._dtfe_analyses],
+            "brain_metrics": asdict(self._brain_metrics) if self._brain_metrics else None,
             "server_time": datetime.utcnow().isoformat(),
             "demo_mode": self._demo_mode
         }
@@ -540,6 +656,57 @@ class DashboardState:
 
     def get_pnl_history(self) -> List[Dict]:
         return [asdict(p) for p in self._pnl_history]
+
+    def get_alpha_features(self) -> Dict:
+        """Get current alpha feature state"""
+        if not self._demo_mode and self.brain is not None:
+            # Pull from brain's alpha extractor
+            try:
+                if hasattr(self.brain, 'alpha_extractor') and self.brain.alpha_extractor is not None:
+                    features = self.brain.alpha_extractor.extract_features(
+                        current_price=0.5,  # Default
+                        win_prob=0.5
+                    )
+                    self._alpha_features = AlphaFeatureSnapshot(
+                        eis=features.exogenous_info_score,
+                        ers=features.endogeneity_score,
+                        news_latency=features.news_latency_delta,
+                        ppd=features.pivot_point_distance,
+                        sres=features.sr_efficacy_score,
+                        mub=features.market_unidirectional_bias,
+                        tii=features.trend_intensity_index,
+                        rrr=features.risk_reward_ratio,
+                        market_regime=features.market_regime,
+                        timestamp=datetime.utcnow().isoformat()
+                    )
+            except Exception as e:
+                self.logger.error(f"Error getting alpha features: {e}")
+
+        return asdict(self._alpha_features) if self._alpha_features else {}
+
+    def get_dtfe_analyses(self) -> List[Dict]:
+        """Get DTFE analysis results"""
+        return [asdict(d) for d in self._dtfe_analyses]
+
+    def get_brain_metrics(self) -> Dict:
+        """Get brain/ML metrics"""
+        if not self._demo_mode and self.brain is not None:
+            try:
+                metrics = self.brain.get_metrics()
+                self._brain_metrics = BrainMetrics(
+                    accuracy=metrics.get('accuracy', 0),
+                    precision=metrics.get('precision', 0),
+                    recall=metrics.get('recall', 0),
+                    f1=metrics.get('f1', 0),
+                    log_loss=metrics.get('log_loss', 0),
+                    calibration_ece=metrics.get('calibration', {}).get('avg_adjustment', 0),
+                    total_predictions=len(self.brain.predictions) if hasattr(self.brain, 'predictions') else 0,
+                    alpha_features_enabled=hasattr(self.brain, 'alpha_extractor') and self.brain.alpha_extractor is not None
+                )
+            except Exception as e:
+                self.logger.error(f"Error getting brain metrics: {e}")
+
+        return asdict(self._brain_metrics) if self._brain_metrics else {}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -665,6 +832,25 @@ async def get_system_health():
 async def get_pnl_history():
     """Get P&L history"""
     return dashboard_state.get_pnl_history()
+
+
+@app.get("/api/alpha-features")
+async def get_alpha_features():
+    """Get current alpha feature state (F.1-F.8)"""
+    return dashboard_state.get_alpha_features()
+
+
+@app.get("/api/dtfe")
+async def get_dtfe_analyses():
+    """Get DTFE analysis results"""
+    return dashboard_state.get_dtfe_analyses()
+
+
+@app.get("/api/brain")
+async def get_brain_metrics():
+    """Get ML/Brain performance metrics"""
+    return dashboard_state.get_brain_metrics()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # WEBSOCKET
