@@ -3,3 +3,11 @@
 __pycache__/
 *.pyc
 *.pyo
+
+# MIMIC runtime directories
+mimic_v3/data/
+mimic_v3/logs/
+mimic_v3/models/
+
+# Environment files with secrets
+.env
