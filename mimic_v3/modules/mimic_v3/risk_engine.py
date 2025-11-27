@@ -298,6 +298,22 @@ class InstitutionalRiskManager:
                     return 0.0, f"Event exposure limit: ${current_exposure:.2f}"
                 size = available
 
+        # Portfolio exposure cap - CRITICAL: prevent over-deployment
+        available_capital = max(0, self.current_capital - self.deployed_capital)
+        max_exposure_pct = 0.95  # Max 95% of capital deployed
+        max_deployable = self.current_capital * max_exposure_pct - self.deployed_capital
+
+        if max_deployable <= 0:
+            self.stats["trades_rejected_risk"] += 1
+            return 0.0, f"Max exposure reached: {(self.deployed_capital/self.current_capital)*100:.1f}%"
+
+        if size > available_capital:
+            if available_capital < 1.0:
+                self.stats["trades_rejected_risk"] += 1
+                return 0.0, f"No available capital: ${available_capital:.2f}"
+            size = min(size, available_capital, max_deployable)
+            self.logger.debug(f"RISK: Capped size to available capital: ${size:.2f}")
+
         # Minimum size threshold
         if size < 1.0:
             self.stats["trades_rejected_risk"] += 1
