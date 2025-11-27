@@ -317,13 +317,17 @@ class MimicCortex:
         whale_stats = self.brain.whale_stats.get(signal.shadow_id, {})
         estimation_samples = whale_stats.get("wins", 0) + whale_stats.get("losses", 0) + 1
 
+        # Get resolution time for time-horizon weighting
+        resolution_hours = getattr(signal, 'resolution_proximity', None)
+
         size, reason = self.risk_manager.calculate_position_size(
             win_prob=win_prob,
             payout_ratio=payout_ratio,
             conviction=signal.confidence,
             estimation_samples=estimation_samples,
             ticker=ticker,
-            event_ticker=signal.event_ticker
+            event_ticker=signal.event_ticker,
+            resolution_hours=resolution_hours
         )
 
         if size <= 0:
@@ -505,6 +509,88 @@ class MimicCortex:
 
         self.logger.info("WEBSOCKET: Stopped")
 
+    async def run_settlement_loop(self):
+        """
+        Settlement Loop - Checks for resolved markets and closes positions.
+
+        Runs every 60 seconds to:
+        1. Get all open positions from database
+        2. Check each market's status via Kalshi API
+        3. Close positions when markets settle
+        """
+        self.logger.info("SETTLEMENT LOOP: Starting")
+
+        while self.running:
+            try:
+                await asyncio.sleep(60)  # Check every minute
+
+                if not self.client:
+                    continue  # Can't check settlements without API
+
+                # Get open positions from risk manager
+                open_positions = list(self.risk_manager.positions.items())
+
+                if not open_positions:
+                    continue
+
+                self.logger.debug(f"SETTLEMENT: Checking {len(open_positions)} open positions")
+
+                for ticker, position in open_positions:
+                    try:
+                        # Get market status from Kalshi
+                        market = await self.client.get_market(ticker)
+                        market_data = market.get("market", {})
+                        status = market_data.get("status", "open")
+                        result = market_data.get("result", None)  # "yes" or "no" when settled
+
+                        if status == "settled" and result:
+                            # Market has settled - close position
+                            exit_price = 1.0 if result == "yes" else 0.0
+                            pnl = self.risk_manager.close_position(ticker, exit_price)
+
+                            if pnl is not None:
+                                # Update brain with outcome for learning
+                                is_win = pnl > 0
+                                self.brain.update_whale_stats(
+                                    position.shadow_id,
+                                    is_win,
+                                    pnl
+                                )
+
+                                self.logger.info(
+                                    f"SETTLEMENT: {ticker} -> {result.upper()} | "
+                                    f"PnL: ${pnl:+.2f} | Side: {position.side}"
+                                )
+
+                        elif status == "closed":
+                            # Market closed but not yet settled - check close_time
+                            close_time = market_data.get("close_time")
+                            if close_time:
+                                from datetime import datetime
+                                close_dt = datetime.fromisoformat(close_time.replace("Z", "+00:00"))
+                                if datetime.now(close_dt.tzinfo) > close_dt:
+                                    # Market is past close time, mark as expired if >24h old
+                                    hours_past = (datetime.utcnow() - close_dt.replace(tzinfo=None)).total_seconds() / 3600
+                                    if hours_past > 24:
+                                        self.logger.warning(f"SETTLEMENT: {ticker} expired (closed >24h ago)")
+                                        # Expire the position at break-even
+                                        self.risk_manager.close_position(ticker, position.entry_price)
+
+                    except Exception as e:
+                        self.logger.debug(f"SETTLEMENT: Error checking {ticker}: {e}")
+                        continue
+
+                    # Rate limiting - don't hammer the API
+                    await asyncio.sleep(0.5)
+
+            except asyncio.CancelledError:
+                break
+            except Exception as e:
+                self.logger.error(f"Settlement loop error: {e}")
+                await asyncio.sleep(30)
+
+        self.logger.info("SETTLEMENT LOOP: Stopped")
+
     async def run_status_loop(self):
         """Periodic status reporting"""
         while self.running:
@@ -575,6 +661,7 @@ class MimicCortex:
                 self.run_taker_loop(),
                 self.run_maker_loop(),
                 self.run_websocket_loop(),
+                self.run_settlement_loop(),
                 self.run_status_loop(),
                 self.run_dashboard_server(),
                 return_exceptions=True

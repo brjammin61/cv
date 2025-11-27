@@ -201,7 +201,8 @@ class InstitutionalRiskManager:
         estimation_samples: int = 50,
         prob_variance: float = 0.0,
         ticker: str = None,
-        event_ticker: str = None
+        event_ticker: str = None,
+        resolution_hours: float = None
     ) -> Tuple[float, str]:
         """
         Calculate position size using Asymptotic Kelly with variance adjustment.
@@ -210,6 +211,7 @@ class InstitutionalRiskManager:
         1. Basic Kelly: f = (p*b - q) / b = p - q/b
         2. Asymptotic: f* = f / (1 + 1/n)
         3. Variance-adjusted: f** = f* * (1 - var(p) * sensitivity)
+        4. Time-horizon adjusted: for capital efficiency
 
         Args:
             win_prob: Estimated P(win)
@@ -219,6 +221,7 @@ class InstitutionalRiskManager:
             prob_variance: Variance of probability estimate
             ticker: Market ticker
             event_ticker: Event ticker for correlation
+            resolution_hours: Hours until market resolves (for capital efficiency)
 
         Returns:
             (size_dollars, reason_string)
@@ -277,9 +280,30 @@ class InstitutionalRiskManager:
         # ========== CONVICTION ==========
         conviction = max(0.0, min(1.0, conviction))
 
+        # ========== TIME-HORIZON WEIGHTING ==========
+        # Adjust position size based on capital lockup period
+        # Shorter resolution = faster turnover = larger allocation
+        # Based on "Time Horizon of Maximum Edge" strategy
+        if resolution_hours is not None and resolution_hours > 0:
+            days_to_resolution = resolution_hours / 24.0
+            if days_to_resolution < 1:
+                # Same day - full allocation, fast turnover
+                time_multiplier = 1.0
+            elif days_to_resolution < 7:
+                # 1-7 days - moderate allocation
+                time_multiplier = 0.8
+            elif days_to_resolution < 30:
+                # 1-4 weeks - reduced allocation (like movie trades)
+                time_multiplier = 0.5
+            else:
+                # 30+ days - only take with massive edge
+                time_multiplier = 0.25
+        else:
+            time_multiplier = 1.0  # Default if not provided
+
         # ========== FINAL SIZE ==========
         base_size = self.current_capital * fractional_kelly
-        adjusted_size = base_size * ddc_multiplier * streak_multiplier * conviction
+        adjusted_size = base_size * ddc_multiplier * streak_multiplier * conviction * time_multiplier
 
         # ========== APPLY CAPS ==========
 
@@ -326,7 +350,7 @@ class InstitutionalRiskManager:
             f"RISK SIZE: edge={edge:.2%} kelly={kelly_f:.2%} "
             f"asymp={asymptotic_factor:.2f} frac={fractional_kelly:.2%} "
             f"ddc={ddc_multiplier:.2f} streak={streak_multiplier:.2f} "
-            f"conv={conviction:.2f} -> ${size:.2f}"
+            f"conv={conviction:.2f} time={time_multiplier:.2f} -> ${size:.2f}"
         )
 
         return size, "OK"
