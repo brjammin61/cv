@@ -78,13 +78,16 @@ class InstitutionalRiskManager:
     def __init__(
         self,
         capital: float = 1000.00,
-        max_daily_loss: float = 50.00,
-        max_weekly_loss: float = 150.00,
-        max_position_pct: float = 0.10,
-        max_event_exposure: float = 0.25,
-        kelly_fraction: float = 0.25,
-        min_edge_threshold: float = 0.02,
-        max_kelly_bet: float = 0.15,  # Never bet more than 15% even with edge
+        max_daily_loss: float = 30.00,       # Reduced from 50 - tighter daily limit
+        max_weekly_loss: float = 100.00,     # Reduced from 150
+        max_position_pct: float = 0.05,      # Reduced from 0.10 - max 5% per position
+        max_event_exposure: float = 0.15,    # Reduced from 0.25 - max 15% per event
+        kelly_fraction: float = 0.20,        # Reduced from 0.25 - more conservative
+        min_edge_threshold: float = 0.03,    # Increased from 0.02 - require 3% edge
+        max_kelly_bet: float = 0.10,         # Reduced from 0.15
+        hard_max_position: float = 25.00,    # NEW: Absolute max $25 per trade
+        min_whale_trades: int = 3,           # NEW: Whale must have 3+ trades
+        extreme_odds_limit: float = 0.05,    # NEW: Reject <5c or >95c
         db: 'MimicDB' = None,
         logger: logging.Logger = None
     ):
@@ -99,6 +102,9 @@ class InstitutionalRiskManager:
         self.kelly_fraction = kelly_fraction
         self.min_edge_threshold = min_edge_threshold
         self.max_kelly_bet = max_kelly_bet
+        self.hard_max_position = hard_max_position      # NEW
+        self.min_whale_trades = min_whale_trades        # NEW
+        self.extreme_odds_limit = extreme_odds_limit    # NEW
 
         self.db = db
         self.logger = logger or logging.getLogger(__name__)
@@ -248,6 +254,27 @@ class InstitutionalRiskManager:
             self.stats["trades_rejected_risk"] += 1
             return 0.0, f"Edge too small: {edge:.2%} < {self.min_edge_threshold:.2%}"
 
+        # ========== EXTREME ODDS PROTECTION ==========
+        # Reject penny contracts and near-certain markets
+        # These have asymmetric risk - small positions = catastrophic losses
+        # Infer implied price from payout ratio
+        # YES side: payout = (1-p)/p, so p = 1/(1+payout)
+        implied_price = 1 / (1 + payout_ratio) if payout_ratio > 0 else 0.5
+
+        if implied_price < self.extreme_odds_limit:
+            self.stats["trades_rejected_risk"] += 1
+            return 0.0, f"Extreme low odds rejected: {implied_price:.1%} < {self.extreme_odds_limit:.0%} (lottery ticket)"
+
+        if implied_price > (1 - self.extreme_odds_limit):
+            self.stats["trades_rejected_risk"] += 1
+            return 0.0, f"Extreme high odds rejected: {implied_price:.1%} > {(1-self.extreme_odds_limit):.0%} (near-certain)"
+
+        # ========== WHALE QUALITY FILTER ==========
+        # Only follow whales with proven track record
+        if estimation_samples < self.min_whale_trades:
+            self.stats["trades_rejected_risk"] += 1
+            return 0.0, f"Whale unproven: {estimation_samples} trades < {self.min_whale_trades} required"
+
         # ========== KELLY CALCULATIONS ==========
 
         # 1. Basic Kelly
@@ -338,6 +365,12 @@ class InstitutionalRiskManager:
             size = min(size, available_capital, max_deployable)
             self.logger.debug(f"RISK: Capped size to available capital: ${size:.2f}")
 
+        # ========== HARD POSITION CAP ==========
+        # Absolute maximum per trade regardless of Kelly
+        if size > self.hard_max_position:
+            self.logger.debug(f"RISK: Hard cap applied: ${size:.2f} -> ${self.hard_max_position:.2f}")
+            size = self.hard_max_position
+
         # Minimum size threshold
         if size < 1.0:
             self.stats["trades_rejected_risk"] += 1
@@ -359,6 +392,11 @@ class InstitutionalRiskManager:
         """
         Dynamic Drawdown Control with smooth curve.
 
+        TIGHTENED for capital preservation:
+        - Halt at 10% (was 25%)
+        - Start reducing at 3% (was 10%)
+        - More aggressive reduction curve
+
         Returns multiplier [0, 1] based on current drawdown.
         """
         if self.current_capital >= self.peak_capital:
@@ -370,30 +408,30 @@ class InstitutionalRiskManager:
                                           self.peak_capital - self.current_capital)
         self.stats["max_drawdown_pct"] = max(self.stats["max_drawdown_pct"], drawdown)
 
-        # Halt at 25% drawdown
-        if drawdown >= 0.25:
+        # HALT at 10% drawdown (was 25%) - protect capital
+        if drawdown >= 0.10:
             self.state = RiskState.HALTED
-            self.logger.warning(f"RISK HALTED: {drawdown:.1%} drawdown")
+            self.logger.warning(f"RISK HALTED: {drawdown:.1%} drawdown >= 10%")
             return 0.0
 
-        # Restricted: 15-25% drawdown
-        if drawdown >= 0.15:
+        # RESTRICTED: 7-10% drawdown (was 15-25%)
+        if drawdown >= 0.07:
             self.state = RiskState.RESTRICTED
-            # Smooth curve: 0.5 at 15%, 0.1 at 25%
-            mult = 0.5 - (drawdown - 0.15) * 4
+            # Smooth curve: 0.3 at 7%, 0.1 at 10%
+            mult = 0.3 - (drawdown - 0.07) * 6.67
             return max(0.1, mult)
 
-        # Cautious: 10-15% drawdown
-        if drawdown >= 0.10:
+        # CAUTIOUS: 3-7% drawdown (was 10-15%)
+        if drawdown >= 0.03:
             self.state = RiskState.CAUTIOUS
-            # Smooth curve: 0.8 at 10%, 0.5 at 15%
-            mult = 0.8 - (drawdown - 0.10) * 6
-            return max(0.5, mult)
+            # Smooth curve: 0.6 at 3%, 0.3 at 7%
+            mult = 0.6 - (drawdown - 0.03) * 7.5
+            return max(0.3, mult)
 
-        # Normal: 0-10% drawdown
+        # NORMAL: 0-3% drawdown
         self.state = RiskState.NORMAL
-        # Linear reduction: 1.0 at 0%, 0.8 at 10%
-        return 1.0 - (drawdown * 2)
+        # Linear reduction: 1.0 at 0%, 0.6 at 3%
+        return 1.0 - (drawdown * 13.33)
 
     def _calculate_streak_multiplier(self) -> float:
         """
